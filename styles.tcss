@@ -1,9 +1,47 @@
 ListView {
-    border: round green;
+    border: round white heavy;
     padding: 1 2;
+    text-align: center;
+    height: auto;
+    width: 50;
+    background: transparent;
+    
 }
 
 ListItem {
-    height: 5;
+    background: transparent;
+    padding: 1 1;
+    height: 3;
+}
+
+ListItem.selected-item {
+    background: transparent;
+    color: #FF8E53;
+    text-style: bold;
+}
+
+ListView > ListItem.--highlight {
+    background: transparent;
+}
+
+Input {
+    border: round white heavy;
     padding: 1 2;
+    width: 50;
+    background: transparent;
+    color: white;
+}
+
+Input:focus {
+    border: round #FF8E53 heavy;
+    color: white;
+}
+
+Input>.input--placeholder {
+    color: grey;
+}
+
+Input>.input--cursor {
+    color: white;
+    background: #FF8E53;
 }
