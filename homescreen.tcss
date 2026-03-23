@@ -1,0 +1,9 @@
+ListView {
+    border: round green;
+    padding: 1 2;
+}
+
+ListItem {
+    height: 5;
+    padding: 1 2;
+}
