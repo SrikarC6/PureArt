@@ -1,13 +1,28 @@
 from textual.app import App, ComposeResult
 from textual.screen import Screen
-from textual.widgets import Header, Footer, Static, ListView, ListItem, Label, Input
+from textual.widgets import Footer, Static, ListView, ListItem, Label, Input
 from textual.containers import Center
 import pyfiglet
 from textual_image.widget import Image as TerminalImage
 from backend import search_artwork
 from rich.text import Text
 
-class HomeScreen(Screen):
+
+class BaseScreen(Screen):
+    def make_logo(self) -> Text:
+        logo = pyfiglet.figlet_format("PureArt", font="larry3d", width=200)
+        text = Text(logo)
+        length = len(logo)
+        text.stylize("bold #FF6B6B", 0, length // 3)
+        text.stylize("bold #FF8E53", length // 3, length * 2 // 3)
+        text.stylize("bold #FFC300", length * 2 // 3, length)
+        return text
+
+    def compose(self) -> ComposeResult:
+        yield Static(self.make_logo(), id="logo")
+
+
+class HomeScreen(BaseScreen):
     OPTIONS = {
         "album": "Search Album",
         "artist": "Search Artist",
@@ -30,6 +45,7 @@ class HomeScreen(Screen):
     """
 
     def compose(self) -> ComposeResult:
+        yield from super().compose()
         yield Static(self.welcome_text)
         with Center():
             yield ListView(
@@ -37,7 +53,6 @@ class HomeScreen(Screen):
                 ListItem(Label("  Search Artist"), id="artist"),
                 ListItem(Label("  Search Song"), id="song")
             )
-        yield Footer()
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         for item_id, label_text in self.OPTIONS.items():
@@ -51,36 +66,36 @@ class HomeScreen(Screen):
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         selected = event.item.id
-        self.app.push_screen(SearchName(selected))
+        self.app.switch_screen(SearchName(selected))  # switch_screen not push_screen
 
 
-class SearchName(Screen):
+class SearchName(BaseScreen):
     def __init__(self, search_type: str) -> None:
         self.search_type = search_type
         super().__init__()
 
     def compose(self) -> ComposeResult:
+        yield from super().compose()
         with Center():
             yield Input(placeholder=f"Enter {self.search_type} name", id="search-input")
-        yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one("#search-input", Input).focus()
+        # call_after_refresh ensures focus isn't stolen by a subsequent cycle
+        self.call_after_refresh(self.query_one("#search-input", Input).focus)
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         name = event.value
-        self.app.push_screen(ShowResults(self.search_type, name))
+        self.app.switch_screen(ShowResults(self.search_type, name))
 
 
-class ShowResults(Screen):
+class ShowResults(BaseScreen):
     def __init__(self, search_type: str, name: str) -> None:
         self.search_type = search_type
         self.name = name
         super().__init__()
 
     def compose(self) -> ComposeResult:
-        yield Header()
-        yield Footer()
+        yield from super().compose()
 
 
 class PureArt(App):
@@ -88,18 +103,8 @@ class PureArt(App):
     SCREENS = {"home": HomeScreen}
     BINDINGS = [("d", "toggle_dark", "Toggle dark mode"),
         ("ctrl+q", "quit", "Quit")]
-    
-    def make_logo(self) -> Text:
-        logo = pyfiglet.figlet_format("PureArt", font="larry3d", width=200)
-        text = Text(logo)
-        length = len(logo)
-        text.stylize("bold #FF6B6B", 0, length // 3)
-        text.stylize("bold #FF8E53", length // 3, length * 2 // 3)
-        text.stylize("bold #FFC300", length * 2 // 3, length)
-        return text
-        
+
     def compose(self) -> ComposeResult:
-        yield Static(self.make_logo())
         yield Footer()
 
     def on_mount(self) -> None:
