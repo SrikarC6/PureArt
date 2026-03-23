@@ -7,15 +7,6 @@ from textual_image.widget import Image as TerminalImage
 from backend import search_artwork
 from rich.text import Text
 
-def make_logo(self) -> Text:
-    logo = pyfiglet.figlet_format("PureArt", font="larry3d", width=200)
-    text = Text(logo)
-    length = len(logo)
-    text.stylize("bold #FF6B6B", 0, length // 3)
-    text.stylize("bold #FF8E53", length // 3, length * 2 // 3)
-    text.stylize("bold #FFC300", length * 2 // 3, length)
-    return text
-
 class HomeScreen(Screen):
     OPTIONS = {
         "album": "Search Album",
@@ -39,7 +30,6 @@ class HomeScreen(Screen):
     """
 
     def compose(self) -> ComposeResult:
-        yield Static(self.make_logo())
         yield Static(self.welcome_text)
         with Center():
             yield ListView(
@@ -70,7 +60,6 @@ class SearchName(Screen):
         super().__init__()
 
     def compose(self) -> ComposeResult:
-        yield Static(self.make_logo())
         with Center():
             yield Input(placeholder=f"Enter {self.search_type} name", id="search-input")
         yield Footer()
@@ -95,19 +84,26 @@ class ShowResults(Screen):
 
 
 class PureArt(App):
-
     CSS_PATH = "styles.tcss"
-
     SCREENS = {"home": HomeScreen}
-
     BINDINGS = [("d", "toggle_dark", "Toggle dark mode"),
         ("ctrl+q", "quit", "Quit")]
+    
+    def make_logo(self) -> Text:
+        logo = pyfiglet.figlet_format("PureArt", font="larry3d", width=200)
+        text = Text(logo)
+        length = len(logo)
+        text.stylize("bold #FF6B6B", 0, length // 3)
+        text.stylize("bold #FF8E53", length // 3, length * 2 // 3)
+        text.stylize("bold #FFC300", length * 2 // 3, length)
+        return text
+        
+    def compose(self) -> ComposeResult:
+        yield Static(self.make_logo())
+        yield Footer()
 
     def on_mount(self) -> None:
         self.push_screen("home")
-
-    def compose(self) -> ComposeResult:
-        yield Footer()
 
     def action_toggle_dark(self) -> None:
         self.theme = (
