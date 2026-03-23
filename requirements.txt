@@ -5,12 +5,14 @@ linkify-it-py==2.1.0
 markdown-it-py==4.0.0
 mdit-py-plugins==0.5.0
 mdurl==0.1.2
+pillow==12.1.1
 platformdirs==4.9.4
 pyfiglet==1.0.4
 Pygments==2.19.2
 requests==2.32.5
 rich==14.3.3
 textual==8.1.1
+textual-image==0.8.5
 typing_extensions==4.15.0
 uc-micro-py==2.0.0
 urllib3==2.6.3
