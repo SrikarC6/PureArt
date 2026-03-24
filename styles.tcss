@@ -4,14 +4,35 @@
     text-align: center;
 }
 
+#main-layout {
+    width: 100%;
+    height: auto;
+    align: center middle;
+}
+
+#left-column {
+    width: auto;
+    height: auto;
+}
+
+#connector {
+    width: 10;
+    height: auto;
+}
+
+#right-column {
+    width: auto;
+    height: auto;
+    align: center middle;
+}
+
 ListView {
     border: round white heavy;
     padding: 1 2;
     text-align: left;
     height: auto;
-    width: 120;
+    width: 30;
     background: transparent;
-    
 }
 
 ListItem {
@@ -31,20 +52,21 @@ ListView > ListItem.--highlight {
 }
 
 Input {
-    border: round white heavy;
+    border: heavy white;
     padding: 1 2;
-    width: 50;
+    width: 40;
+    height: 5;
     background: transparent;
     color: white;
 }
 
 Input:focus {
-    border: round #FF8E53 heavy;
+    border: heavy #FF8E53;
     color: white;
 }
 
 Input>.input--placeholder {
-    color: white;
+    color: grey;
 }
 
 Input>.input--cursor {

@@ -1,14 +1,21 @@
 from textual.app import App, ComposeResult
 from textual.screen import Screen
 from textual.widgets import Footer, Static, ListView, ListItem, Label, Input
-from textual.containers import Center
+from textual.containers import Center, Horizontal, Vertical
 import pyfiglet
 from textual_image.widget import Image as TerminalImage
 from backend import search_artwork
 from rich.text import Text
 
 
-class BaseScreen(Screen):
+class HomeScreen(Screen):
+
+    OPTIONS = {
+        "album": "Album",
+        "artist": "Artist",
+        "song": "Song"
+    }
+
     def make_logo(self) -> Text:
         logo = pyfiglet.figlet_format("PureArt", font="larry3d", width=200)
         text = Text(logo)
@@ -20,39 +27,17 @@ class BaseScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static(self.make_logo(), id="logo")
-
-
-class HomeScreen(BaseScreen):
-    OPTIONS = {
-        "album": "Search Album",
-        "artist": "Search Artist",
-        "song": "Search Song"
-    }
-
-    welcome_text = """
-    [bold]TUI app to download album art[/bold]
-    
-    [underline]How to use:[/underline]
-        1. Select to search for an album name, artist name, or song name
-        2. Search for the respective name
-        3. Scroll through the options and download the one you want
-        4. Enjoy!
-    
-    [underline]Disclaimer:[/underline]
-        * Not every terminal supports inline image viewing
-        * If your terminal app supports it, a preview of the album art will be automatically visible
-        * If not, you can manually click on each link for a preview of each album cover and download the one you want
-    """
-
-    def compose(self) -> ComposeResult:
-        yield from super().compose()
-        yield Static(self.welcome_text)
-        with Center():
-            yield ListView(
-                ListItem(Label("  Search Album"), id="album"),
-                ListItem(Label("  Search Artist"), id="artist"),
-                ListItem(Label("  Search Song"), id="song")
-            )
+        with Horizontal(id="main-layout"):
+            with Vertical(id="left-column"):
+                yield ListView(
+                    ListItem(Label("  Album"), id="album"),
+                    ListItem(Label("  Artist"), id="artist"),
+                    ListItem(Label("  Song"), id="song")
+                )
+            yield Static("", id="connector")
+            with Vertical(id="right-column"):
+                yield Input(placeholder="Search...", id="search-input")
+        yield Footer()
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
         for item_id, label_text in self.OPTIONS.items():
@@ -63,39 +48,18 @@ class HomeScreen(BaseScreen):
         if event.item:
             event.item.query_one(Label).update(f"* {self.OPTIONS[event.item.id]}")
             event.item.add_class("selected-item")
-
-    def on_list_view_selected(self, event: ListView.Selected) -> None:
-        selected = event.item.id
-        self.app.switch_screen(SearchName(selected))  # switch_screen not push_screen
-
-
-class SearchName(BaseScreen):
-    def __init__(self, search_type: str) -> None:
-        self.search_type = search_type
-        super().__init__()
-
-    def compose(self) -> ComposeResult:
-        yield from super().compose()
-        with Center():
-            yield Input(placeholder=f"Enter {self.search_type} name", id="search-input")
-
-    def on_mount(self) -> None:
-        # call_after_refresh ensures focus isn't stolen by a subsequent cycle
-        self.call_after_refresh(self.query_one("#search-input", Input).focus)
+            self.query_one("#search-input", Input).placeholder = f"Search {self.OPTIONS[event.item.id]}..."
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        name = event.value
-        self.app.switch_screen(ShowResults(self.search_type, name))
-
-
-class ShowResults(BaseScreen):
-    def __init__(self, search_type: str, name: str) -> None:
-        self.search_type = search_type
-        self.name = name
-        super().__init__()
-
-    def compose(self) -> ComposeResult:
-        yield from super().compose()
+        search_type = None
+        for item_id in self.OPTIONS:
+            item = self.query_one(f"#{item_id}", ListItem)
+            if "selected-item" in item.classes:
+                search_type = item_id
+                break
+        if search_type and event.value:
+            results = search_artwork(search_type, event.value)
+            self.notify(f"Found {len(results)} results for '{event.value}'")
 
 
 class PureArt(App):
