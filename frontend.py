@@ -15,7 +15,22 @@ class HomeScreen(Screen):
         "artist": "Artist",
         "song": "Song"
     }
-
+    
+    welcome_text = """
+        [bold]TUI app to download album art[/bold]
+        
+        [underline]How to use:[/underline]
+            1. Select to search for an album name, artist name, or song name
+            2. Search for the respective name
+            3. Scroll through the options and download the one you want
+            4. Enjoy!
+        
+        [underline]Disclaimer:[/underline]
+            * Not every terminal supports inline image viewing
+            * If your terminal app supports it, a preview of the album art will be automatically visible
+            * If not, you can manually click on each link for a preview of each album cover and download the one you want
+        """
+    
     def make_logo(self) -> Text:
         logo = pyfiglet.figlet_format("PureArt", font="larry3d", width=200)
         text = Text(logo)
@@ -27,6 +42,7 @@ class HomeScreen(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static(self.make_logo(), id="logo")
+        yield Static(self.welcome_text)
         with Horizontal(id="main-layout"):
             with Vertical(id="left-column"):
                 yield ListView(
