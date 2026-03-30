@@ -1,10 +1,6 @@
-/* ─── Global ─── */
-
 Screen {
-    background: $background;
+    background: #0F0F0F;
 }
-
-/* ─── Home Screen: Panels ─── */
 
 #home-shell {
     width: 100%;
@@ -13,7 +9,7 @@ Screen {
 }
 
 .home-panel {
-    border: round #4A4A4A;
+    border: round #FFE500;
     background: transparent;
     padding: 1 2;
 }
@@ -30,23 +26,6 @@ Screen {
     padding: 0;
 }
 
-#welcome {
-    width: 100%;
-    text-align: left;
-    padding: 0;
-    color: $text-muted;
-}
-
-.panel-title {
-    width: 100%;
-    margin: 0 0 1 0;
-    text-style: bold;
-    color: white;
-    padding: 0 0 0 1;
-}
-
-/* ─── Home Screen: Main Layout ─── */
-
 #main-layout {
     width: 100%;
     height: auto;
@@ -57,7 +36,7 @@ Screen {
 
 #info-panel {
     width: 1fr;
-    height: auto;
+    height: 100%;
     margin: 0 1 0 0;
 }
 
@@ -72,7 +51,7 @@ Screen {
     height: auto;
     margin: 0 0 1 0;
     border: none;
-    padding: 0 0 0 1;
+    padding: 1 0 0 1;
 }
 
 #query-panel {
@@ -82,19 +61,34 @@ Screen {
     padding: 0 0 0 1;
 }
 
-/* ─── Home Screen: ListView ─── */
+.panel-title {
+    background: #FFE500;
+    color: #0F0F0F;
+    text-style: bold;
+    padding: 0 1;
+    width: auto;
+    margin: 0 0 1 0;
+}
+
+#welcome {
+    width: 100%;
+    text-align: left;
+    content-align: left top;
+    padding: 0;
+    color: $text-muted;
+}
 
 ListView {
-    border: round white;
+    border: round #FFFFFF;
+    background: transparent;
     padding: 1 2;
     text-align: left;
     height: 13;
     width: 100%;
-    background: transparent;
 }
 
 ListView:focus {
-    border: round #FF8E53;
+    border: round #FFE500;
 }
 
 ListItem {
@@ -104,8 +98,8 @@ ListItem {
 }
 
 ListItem.selected-item {
-    background: transparent;
-    color: #FF8E53;
+    background: #FFE500;
+    color: #0F0F0F;
     text-style: bold;
 }
 
@@ -113,42 +107,34 @@ ListView > ListItem.--highlight {
     background: transparent;
 }
 
-/* ─── Home Screen: Search Input ─── */
-
 #search-input {
-    border: round white;
+    border: round #FFFFFF;
+    background: transparent;
+    color: white;
     padding: 1 2;
     width: 100%;
     height: 5;
-    background: transparent;
-    color: white;
 }
 
 #search-input:focus {
-    border: round #FF8E53;
+    border: round #FFE500;
     color: white;
 }
-
-/* ─── Home Screen: Loading Indicator ─── */
-
-#loading-indicator {
-    width: 100%;
-    height: 5;
-    color: #FF8E53;
-}
-
-/* ─── Shared Input Styles ─── */
 
 Input > .input--placeholder {
     color: grey;
 }
 
 Input > .input--cursor {
-    color: white;
-    background: #FF8E53;
+    color: #0F0F0F;
+    background: #FFE500;
 }
 
-/* ─── Results Screen ─── */
+#loading-indicator {
+    width: 100%;
+    height: 5;
+    color: #FFE500;
+}
 
 ResultsScreen {
     layout: vertical;
@@ -158,22 +144,20 @@ ResultsScreen {
     width: 100%;
     text-align: center;
     padding: 1 2;
-    background: $surface;
+    background: transparent;
 }
 
 #filter-input {
     width: 1fr;
     margin: 1 2;
-    border: round;
-    height: 3;
+    border: round #FFFFFF;
     background: transparent;
+    height: 3;
 }
 
 #filter-input:focus {
-    border: round #FF8E53;
+    border: round #FFE500;
 }
-
-/* ─── Results Screen: Grid ─── */
 
 #results-container {
     width: 100%;
@@ -197,19 +181,29 @@ ResultsScreen {
     color: $text-muted;
 }
 
-/* ─── Results Screen: Cards ─── */
-
 .result-card {
-    border: round;
+    border: round #FFFFFF;
+    background: transparent;
     padding: 1 2;
     height: auto;
     width: 1fr;
     min-width: 36;
-    background: transparent;
 }
 
 .result-card:hover {
-    border: round #FF8E53;
+    border: round #FFE500;
+}
+
+.result-card:focus,
+.result-card:focus-within {
+    border: round #FFE500;
+    background: rgba(255, 229, 0, 0.08);
+}
+
+ResultCard:focus > .result-card,
+ResultCard:focus-within > .result-card {
+    border: round #FFE500;
+    background: rgba(255, 229, 0, 0.08);
 }
 
 .result-card-image-row {
@@ -230,7 +224,7 @@ ResultsScreen {
 }
 
 .result-card-artist {
-    color: #FF8E53;
+    color: #FFE500;
 }
 
 .result-card-year {
@@ -238,24 +232,24 @@ ResultsScreen {
 }
 
 .result-card-link {
-    color: #FFC300;
+    color: #FF5500;
     margin: 1 0 0 0;
 }
 
 .download-btn {
     width: 100%;
     margin: 1 0 0 0;
-    background: transparent;
-    border: heavy #FF8E53;
-    color: #FF8E53;
+    background: #FFE500;
+    border: round #FFE500;
+    color: #0F0F0F;
+    text-style: bold;
 }
 
 .download-btn:hover {
-    background: #FF8E53;
-    color: $background;
+    background: #FFFFFF;
+    border: round #FFFFFF;
+    color: #0F0F0F;
 }
-
-/* ─── Pagination ─── */
 
 #pagination-bar {
     width: 100%;
@@ -268,14 +262,15 @@ ResultsScreen {
 
 .pagination-btn {
     min-width: 14;
-    background: transparent;
-    border: round #FF8E53;
-    color: #FF8E53;
+    background: #FFE500;
+    border: round #FFE500;
+    color: #0F0F0F;
 }
 
 .pagination-btn:hover {
-    background: #FF8E53;
-    color: $background;
+    background: #FFFFFF;
+    border: round #FFFFFF;
+    color: #0F0F0F;
 }
 
 .pagination-btn:disabled {
@@ -289,8 +284,6 @@ ResultsScreen {
     color: $text-muted;
 }
 
-/* ─── Save Screen (Modal) ─── */
-
 SaveScreen {
     align: center middle;
     background: rgba(0, 0, 0, 0.7);
@@ -298,9 +291,9 @@ SaveScreen {
 
 #save-dialog {
     width: 64;
-    height: 32;
-    border: heavy #FF8E53;
-    background: $surface;
+    height: 42;
+    border: round #FFE500;
+    background: transparent;
     padding: 1 2;
 }
 
@@ -313,30 +306,34 @@ SaveScreen {
 #save-tree {
     height: 1fr;
     margin: 1 0;
-    border: round;
+    border: round #FFFFFF;
+    background: transparent;
 }
 
 #selected-path-label {
     height: 1;
     margin: 1 0;
-    color: #FF8E53;
+    color: #FFE500;
 }
 
 #save-buttons {
     height: 3;
     align: center middle;
+    margin: 0 0 2 0;
     dock: bottom;
 }
 
 #save-confirm {
-    background: #FF8E53;
-    color: $background;
+    background: #FFE500;
+    color: #0F0F0F;
+    border: round #FFE500;
+    text-style: bold;
     margin: 0 1;
 }
 
 #save-cancel {
-    background: transparent;
-    border: round white;
-    color: white;
+    background: #FFE500;
+    border: round #FFE500;
+    color: #0F0F0F;
     margin: 0 1;
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from pathlib import Path
 from typing import ClassVar
 
@@ -17,7 +18,6 @@ from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.reactive import reactive
 from textual.screen import ModalScreen, Screen
-from textual.timer import Timer
 from textual.widget import Widget
 from textual.widgets import (
     Button,
@@ -50,11 +50,6 @@ from textual_image.widget import Image as TerminalImage
 SUPPORTS_NATIVE_IMAGES: bool = _ResolvedRenderable in (_SixelImage, _TGPImage)
 
 # ─── Constants ────────────────────────────────────────────────────────
-CONNECTOR_ARROW = "────────────────▶"
-GRADIENT_COLORS = [
-    "#FF6B6B", "#FF7560", "#FF7E55", "#FF884A", "#FF8E53",
-    "#FF9A4A", "#FFA641", "#FFB238", "#FFBA30", "#FFC300",
-]
 RESULTS_PER_PAGE = 10
 FILTER_PLACEHOLDERS = {
     "album": "Filter by artist or year...",
@@ -62,61 +57,11 @@ FILTER_PLACEHOLDERS = {
     "song": "Filter by artist, album, or year...",
 }
 
-
-# ─── Animated Connector ──────────────────────────────────────────────
-
-
-class AnimatedConnector(Widget):
-    """Horizontal arrow with a flowing color-wave animation."""
-
-    position: reactive[int] = reactive(0)
-    connector_visible: reactive[bool] = reactive(True)
-
-    def __init__(self, **kwargs) -> None:
-        super().__init__(**kwargs)
-        self._frame: int = 0
-        self._timer: Timer | None = None
-
-    def on_mount(self) -> None:
-        self._timer = self.set_interval(0.15, self._advance_frame)
-
-    def _advance_frame(self) -> None:
-        self._frame += 1
-        self.refresh()
-
-    def render(self) -> Text:
-        if not self.connector_visible:
-            return Text("")
-
-        # Build the animated arrow line
-        arrow = Text()
-        for i, char in enumerate(CONNECTOR_ARROW):
-            color_idx = (i + self._frame) % len(GRADIENT_COLORS)
-            arrow.append(char, style=f"bold {GRADIENT_COLORS[color_idx]}")
-
-        # Position arrow to align with the highlighted ListItem.
-        # ListView internals: border(1) + padding(1) + item_index * item_height(3)
-        # + center of item(1) = position * 3 + 3.  Adjusted for the connector
-        # widget sitting alongside the Vertical that wraps the ListView.
-        center_row = self.position * 3 + 2
-        total_rows = 11  # Matches ListView visible height
-
-        result = Text()
-        blank = " " * len(CONNECTOR_ARROW)
-        for row in range(total_rows):
-            if row == center_row:
-                result.append(arrow)
-            else:
-                result.append(blank)
-            if row < total_rows - 1:
-                result.append("\n")
-        return result
-
 # ─── Home Screen ─────────────────────────────────────────────────────
 
 
 class HomeScreen(Screen):
-    """Main menu: logo, search-type selector, animated connector, input."""
+    """Main menu: logo, search-type selector, and input."""
 
     OPTIONS: ClassVar[dict[str, str]] = {
         "album": "Album",
@@ -131,23 +76,21 @@ class HomeScreen(Screen):
         Binding("ctrl+r", "submit_search", "Search"),
         Binding("tab", "focus_next", "Next"),
         Binding("shift+tab", "focus_previous", "Previous"),
-        Binding("escape", "app.quit", "Quit", show=False),
     ]
 
-    welcome_text = """
-        [bold]TUI app to download album art[/bold]
+    welcome_text = """[bold]TUI app to download album art[/bold]
 
-        [underline]How to use:[/underline]
-            1. Select to search for an album name, artist name, or song name
-            2. Search for the respective name
-            3. Scroll through the options and download the one you want
-            4. Enjoy!
+[underline]How to use:[/underline]
+1. Select to search for an album name, artist name, or song name
+2. Search for the respective name
+3. Scroll through the options and download the one you want
+4. Enjoy!
 
-        [underline]Disclaimer:[/underline]
-            * Not every terminal supports inline image viewing
-            * If your terminal app supports it, a preview of the album art will be automatically visible
-            * If not, you can manually click on each link for a preview of each album cover and download the one you want
-        """
+[underline]Disclaimer:[/underline]
+* Not every terminal supports inline image viewing
+* If your terminal app supports it, a preview of the album art will be automatically visible
+* If not, you can manually click on each link for a preview of each album cover and download the one you want
+"""
 
     # Cache the logo so pyfiglet only runs once
     _logo_cache: ClassVar[Text | None] = None
@@ -204,14 +147,6 @@ class HomeScreen(Screen):
             item.query_one(Label).update(f"  {label_text}")
             item.remove_class("selected-item")
 
-        connector = next(
-            (
-                widget
-                for widget in self.query("#connector")
-                if isinstance(widget, AnimatedConnector)
-            ),
-            None,
-        )
         if category in self.OPTIONS:
             selected_item = self.query_one(f"#{category}", ListItem)
             selected_item.query_one(Label).update(f"* {self.OPTIONS[category]}")
@@ -219,12 +154,6 @@ class HomeScreen(Screen):
             self.query_one("#search-input", Input).placeholder = (
                 f"Search {self.OPTIONS[category]}..."
             )
-            if connector is not None:
-                keys = list(self.OPTIONS.keys())
-                connector.position = keys.index(category)
-                connector.connector_visible = True
-        elif connector is not None:
-            connector.connector_visible = False
         self._refresh_footer_bindings()
 
     # ── Search handling ───────────────────────────────────────────────
@@ -336,8 +265,12 @@ class HomeScreen(Screen):
 # ─── Result Card ─────────────────────────────────────────────────────
 
 
-class ResultCard(Widget):
+class ResultCard(Widget, can_focus=True):
     """A single result card with album info and a Download button."""
+
+    BINDINGS = [
+        Binding("enter", "download", "Download"),
+    ]
 
     class DownloadRequested(Message):
         """Posted when the user clicks Download on this card."""
@@ -408,6 +341,16 @@ class ResultCard(Widget):
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.post_message(self.DownloadRequested(self.result))
 
+    def action_download(self) -> None:
+        self.post_message(self.DownloadRequested(self.result))
+
+
+class VisibleDirectoryTree(DirectoryTree):
+    """Directory tree that hides dotfiles and dot-directories."""
+
+    def filter_paths(self, paths: Iterable[Path]) -> Iterable[Path]:
+        return [path for path in paths if not path.name.startswith(".")]
+
 
 # ─── Save Screen (Modal) ─────────────────────────────────────────────
 
@@ -427,7 +370,7 @@ class SaveScreen(ModalScreen[Path | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="save-dialog"):
             yield Label("[bold]Save artwork to:[/bold]", id="save-title")
-            yield DirectoryTree(str(Path.home()), id="save-tree")
+            yield VisibleDirectoryTree(str(Path.home()), id="save-tree")
             yield Label(
                 f"Selected: {self._selected_path}", id="selected-path-label"
             )
@@ -437,7 +380,7 @@ class SaveScreen(ModalScreen[Path | None]):
             yield Footer()
 
     def on_mount(self) -> None:
-        self.query_one("#save-tree", DirectoryTree).focus()
+        self.query_one("#save-tree", VisibleDirectoryTree).focus()
         self.query_one(Footer).refresh_bindings()
 
     def on_directory_tree_directory_selected(
@@ -469,8 +412,8 @@ class ResultsScreen(Screen):
 
     BINDINGS = [
         Binding("escape", "go_back", "Back"),
-        Binding("alt+p", "prev_page", "Previous page"),
-        Binding("alt+n", "next_page", "Next page"),
+        Binding("ctrl+right", "prev_page", "Previous page"),
+        Binding("ctrl+left", "next_page", "Next page"),
         Binding("/", "focus_filter", "Filter"),
         Binding("tab", "focus_next", "Next"),
         Binding("shift+tab", "focus_previous", "Previous"),
@@ -492,12 +435,13 @@ class ResultsScreen(Screen):
         self.filtered_results: list[ArtworkResult] = list(results)
         self.preview_cache: dict[str, PILImage.Image] = {}
         self._pending_previews: set[str] = set()
+        self._card_order: list[ResultCard] = []
         self._visible_cards: dict[str, ResultCard] = {}
 
     def compose(self) -> ComposeResult:
         escaped_query = escape(self.query_text)
         yield Static(
-            f"[bold]Results for[/bold] [italic #FF8E53]'{escaped_query}'[/italic #FF8E53] "
+            f"[bold]Results for[/bold] [italic #FFE500]'{escaped_query}'[/italic #FFE500] "
             f"[dim]({len(self.all_results)} results)[/dim]",
             id="results-header",
         )
@@ -534,6 +478,7 @@ class ResultsScreen(Screen):
     def _render_page(self) -> None:
         container = self.query_one("#results-container", VerticalScroll)
         container.remove_children()
+        self._card_order.clear()
         self._visible_cards.clear()
 
         start = self.current_page * RESULTS_PER_PAGE
@@ -547,6 +492,7 @@ class ResultsScreen(Screen):
                 preview_image = self.preview_cache.get(preview_url)
                 card = ResultCard(result, start + i, preview_image=preview_image)
                 cards.append(card)
+                self._card_order.append(card)
                 self._visible_cards[preview_url] = card
             grid = Grid(*cards, classes="results-grid")
             grid.styles.grid_size_columns = 1 if self.size.width < 120 else 2
@@ -607,7 +553,7 @@ class ResultsScreen(Screen):
             self._render_page()
         escaped_query = escape(self.query_text)
         self.query_one("#results-header", Static).update(
-            f"[bold]Results for[/bold] [italic #FF8E53]'{escaped_query}'[/italic #FF8E53] "
+            f"[bold]Results for[/bold] [italic #FFE500]'{escaped_query}'[/italic #FFE500] "
             f"[dim]({len(self.filtered_results)} of {len(self.all_results)} results)[/dim]"
         )
         self._refresh_footer_bindings()
@@ -710,11 +656,33 @@ class ResultsScreen(Screen):
         self._refresh_footer_bindings()
 
     def action_focus_next(self) -> None:
-        self.app.action_focus_next()
+        if not self._card_order:
+            self.app.action_focus_next()
+            self._refresh_footer_bindings()
+            return
+
+        current_card = self._get_focused_card()
+        if current_card is None or current_card not in self._card_order:
+            self._card_order[0].focus()
+        else:
+            current_index = self._card_order.index(current_card)
+            next_index = (current_index + 1) % len(self._card_order)
+            self._card_order[next_index].focus()
         self._refresh_footer_bindings()
 
     def action_focus_previous(self) -> None:
-        self.app.action_focus_previous()
+        if not self._card_order:
+            self.app.action_focus_previous()
+            self._refresh_footer_bindings()
+            return
+
+        current_card = self._get_focused_card()
+        if current_card is None or current_card not in self._card_order:
+            self._card_order[-1].focus()
+        else:
+            current_index = self._card_order.index(current_card)
+            previous_index = (current_index - 1) % len(self._card_order)
+            self._card_order[previous_index].focus()
         self._refresh_footer_bindings()
 
     def action_go_back(self) -> None:
@@ -727,6 +695,14 @@ class ResultsScreen(Screen):
     def action_next_page(self) -> None:
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
+
+    def _get_focused_card(self) -> ResultCard | None:
+        focused = self.app.focused
+        while focused is not None:
+            if isinstance(focused, ResultCard):
+                return focused
+            focused = focused.parent
+        return None
 
     def _refresh_footer_bindings(self) -> None:
         if self.is_mounted:
