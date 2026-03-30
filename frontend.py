@@ -112,7 +112,6 @@ class AnimatedConnector(Widget):
                 result.append("\n")
         return result
 
-
 # ─── Home Screen ─────────────────────────────────────────────────────
 
 
@@ -131,7 +130,7 @@ class HomeScreen(Screen):
         Binding("3", "select_category('song')", "Song"),
         Binding("ctrl+r", "submit_search", "Search"),
         Binding("tab", "focus_next", "Next"),
-        Binding("shift+tab", "focus_previous", "Previous", show=False),
+        Binding("shift+tab", "focus_previous", "Previous"),
         Binding("escape", "app.quit", "Quit", show=False),
     ]
 
@@ -381,6 +380,11 @@ class ResultCard(Widget):
         if SUPPORTS_NATIVE_IMAGES and self.preview_image is not None:
             self._set_preview(self.preview_image)
 
+    def set_preview_image(self, img: PILImage.Image) -> None:
+        self.preview_image = img
+        if self.is_mounted:
+            self._set_preview(img)
+
     def _set_preview(self, img: PILImage.Image) -> None:
         try:
             self.query_one(f"#img-{self.card_index}", TerminalImage).image = img
@@ -455,7 +459,7 @@ class ResultsScreen(Screen):
         Binding("alt+n", "next_page", "Next page"),
         Binding("/", "focus_filter", "Filter"),
         Binding("tab", "focus_next", "Next"),
-        Binding("shift+tab", "focus_previous", "Previous", show=False),
+        Binding("shift+tab", "focus_previous", "Previous"),
     ]
 
     current_page: reactive[int] = reactive(0)
@@ -535,7 +539,7 @@ class ResultsScreen(Screen):
             container.mount(grid)
             if SUPPORTS_NATIVE_IMAGES:
                 for result in page_results:
-                    preview_url = result.get("preview_url", "")
+                    preview_url = self._get_preview_source(result)
                     if (
                         preview_url
                         and preview_url not in self.preview_cache
@@ -657,18 +661,18 @@ class ResultsScreen(Screen):
         self._pending_previews.discard(preview_url)
         self.preview_cache[preview_url] = image
         card = self._visible_cards.get(preview_url)
-        if card is not None and card.is_mounted:
-            card._set_preview(image)
+        if card is not None:
+            card.set_preview_image(image)
 
     def _mark_preview_complete(self, preview_url: str) -> None:
         self._pending_previews.discard(preview_url)
 
     def _get_preview_source(self, result: ArtworkResult) -> str:
         preview_url = result.get("preview_url", "")
-        return preview_url.replace("100x100bb", "600x600bb")
+        return preview_url.replace("100x100bb", "300x300bb")
 
     def _get_preview_fallback(self, preview_url: str) -> str:
-        return preview_url.replace("600x600bb", "100x100bb")
+        return preview_url.replace("300x300bb", "100x100bb")
 
     # ── Navigation ────────────────────────────────────────────────────
 
@@ -724,10 +728,7 @@ class PureArt(App):
     TITLE = "PureArt"
     CSS_PATH = "styles.tcss"
     SCREENS = {"home": HomeScreen}
-    BINDINGS = [
-        Binding("d", "toggle_dark", "Toggle dark mode"),
-        Binding("ctrl+q", "quit", "Quit"),
-    ]
+    BINDINGS = [Binding("ctrl+q", "quit", "Quit")]
 
     def on_mount(self) -> None:
         self.push_screen("home")
