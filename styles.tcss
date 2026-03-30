@@ -1,8 +1,26 @@
+/* ─── Global ─── */
+
+Screen {
+    background: $background;
+}
+
+/* ─── Home Screen: Logo & Welcome ─── */
+
 #logo {
     dock: top;
     width: 100%;
     text-align: center;
+    padding: 1 0 0 0;
 }
+
+#welcome {
+    width: 100%;
+    text-align: center;
+    padding: 0 0 1 0;
+    color: $text-muted;
+}
+
+/* ─── Home Screen: Main Layout ─── */
 
 #main-layout {
     width: 100%;
@@ -15,19 +33,24 @@
     height: auto;
 }
 
-#connector {
-    width: 10;
-    height: auto;
-}
-
 #right-column {
     width: auto;
     height: auto;
     align: center middle;
 }
 
+/* ─── Home Screen: Connector ─── */
+
+#connector {
+    width: 24;
+    height: auto;
+    padding: 0 1;
+}
+
+/* ─── Home Screen: ListView ─── */
+
 ListView {
-    border: round white heavy;
+    border: heavy white;
     padding: 1 2;
     text-align: left;
     height: auto;
@@ -51,7 +74,9 @@ ListView > ListItem.--highlight {
     background: transparent;
 }
 
-Input {
+/* ─── Home Screen: Search Input ─── */
+
+#search-input {
     border: heavy white;
     padding: 1 2;
     width: 40;
@@ -60,16 +85,203 @@ Input {
     color: white;
 }
 
-Input:focus {
+#search-input:focus {
     border: heavy #FF8E53;
     color: white;
 }
 
-Input>.input--placeholder {
+/* ─── Home Screen: Loading Indicator ─── */
+
+#loading-indicator {
+    width: 40;
+    height: 5;
+    color: #FF8E53;
+}
+
+/* ─── Shared Input Styles ─── */
+
+Input > .input--placeholder {
     color: grey;
 }
 
-Input>.input--cursor {
+Input > .input--cursor {
     color: white;
     background: #FF8E53;
+}
+
+/* ─── Results Screen ─── */
+
+ResultsScreen {
+    layout: vertical;
+}
+
+#results-header {
+    width: 100%;
+    text-align: center;
+    padding: 1 2;
+    background: $surface;
+}
+
+#filter-input {
+    width: 1fr;
+    margin: 1 2;
+    border: round;
+    height: 3;
+    background: transparent;
+}
+
+#filter-input:focus {
+    border: round #FF8E53;
+}
+
+/* ─── Results Screen: Grid ─── */
+
+#results-container {
+    width: 100%;
+    height: 1fr;
+}
+
+#results-grid {
+    grid-size: 2;
+    grid-gutter: 1 2;
+    width: 100%;
+    height: auto;
+    padding: 1 2;
+}
+
+/* ─── Results Screen: Cards ─── */
+
+.result-card {
+    border: round;
+    padding: 1 2;
+    height: auto;
+    width: 1fr;
+    background: $surface;
+}
+
+.result-card:hover {
+    border: round #FF8E53;
+}
+
+.result-card-image {
+    width: 100%;
+    height: 12;
+    margin: 0 0 1 0;
+}
+
+.result-card-title {
+    text-style: bold;
+    color: white;
+}
+
+.result-card-artist {
+    color: #FF8E53;
+}
+
+.result-card-year {
+    color: $text-muted;
+}
+
+.result-card-link {
+    color: #FFC300;
+    margin: 1 0 0 0;
+}
+
+.download-btn {
+    width: 100%;
+    margin: 1 0 0 0;
+    background: transparent;
+    border: heavy #FF8E53;
+    color: #FF8E53;
+}
+
+.download-btn:hover {
+    background: #FF8E53;
+    color: $background;
+}
+
+/* ─── Pagination ─── */
+
+#pagination-bar {
+    dock: bottom;
+    width: 100%;
+    height: 3;
+    align: center middle;
+    padding: 0 2;
+    background: $surface;
+}
+
+.pagination-btn {
+    min-width: 14;
+    background: transparent;
+    border: round #FF8E53;
+    color: #FF8E53;
+}
+
+.pagination-btn:hover {
+    background: #FF8E53;
+    color: $background;
+}
+
+.pagination-btn:disabled {
+    opacity: 0.3;
+}
+
+#page-indicator {
+    width: auto;
+    margin: 0 2;
+    text-align: center;
+    color: $text-muted;
+}
+
+/* ─── Save Screen (Modal) ─── */
+
+SaveScreen {
+    align: center middle;
+    background: rgba(0, 0, 0, 0.7);
+}
+
+#save-dialog {
+    width: 64;
+    height: 32;
+    border: heavy #FF8E53;
+    background: $surface;
+    padding: 1 2;
+}
+
+#save-title {
+    text-style: bold;
+    color: white;
+    margin: 0 0 1 0;
+}
+
+#save-tree {
+    height: 1fr;
+    margin: 1 0;
+    border: round;
+}
+
+#selected-path-label {
+    height: 1;
+    margin: 1 0;
+    color: #FF8E53;
+}
+
+#save-buttons {
+    height: 3;
+    align: center middle;
+    dock: bottom;
+}
+
+#save-confirm {
+    background: #FF8E53;
+    color: $background;
+    margin: 0 1;
+}
+
+#save-cancel {
+    background: transparent;
+    border: round white;
+    color: white;
+    margin: 0 1;
 }
