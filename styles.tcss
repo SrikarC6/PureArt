@@ -4,20 +4,45 @@ Screen {
     background: $background;
 }
 
-/* ─── Home Screen: Logo & Welcome ─── */
+/* ─── Home Screen: Panels ─── */
+
+#home-shell {
+    width: 100%;
+    height: 1fr;
+    padding: 1 2;
+}
+
+.home-panel {
+    border: round #4A4A4A;
+    background: transparent;
+    padding: 1 2;
+}
+
+#hero-panel {
+    width: 100%;
+    height: auto;
+    margin: 0 0 1 0;
+}
 
 #logo {
-    dock: top;
     width: 100%;
     text-align: center;
-    padding: 1 0 0 0;
+    padding: 0;
 }
 
 #welcome {
     width: 100%;
-    text-align: center;
-    padding: 0 0 1 0;
+    text-align: left;
+    padding: 0;
     color: $text-muted;
+}
+
+.panel-title {
+    width: 100%;
+    margin: 0 0 1 0;
+    text-style: bold;
+    color: white;
+    padding: 0 0 0 1;
 }
 
 /* ─── Home Screen: Main Layout ─── */
@@ -25,37 +50,51 @@ Screen {
 #main-layout {
     width: 100%;
     height: auto;
-    align: center middle;
+    align: center top;
+    content-align: center top;
+    margin: 0 0 1 0;
 }
 
-#left-column {
-    width: auto;
+#info-panel {
+    width: 1fr;
     height: auto;
+    margin: 0 1 0 0;
 }
 
-#right-column {
-    width: auto;
+#control-column {
+    width: 1fr;
     height: auto;
-    align: center middle;
+    padding: 1 0 1 0;
 }
 
-/* ─── Home Screen: Connector ─── */
-
-#connector {
-    width: 24;
+#selector-panel {
+    width: 100%;
     height: auto;
-    padding: 0 1;
+    margin: 0 0 1 0;
+    border: none;
+    padding: 0 0 0 1;
+}
+
+#query-panel {
+    width: 100%;
+    height: auto;
+    border: none;
+    padding: 0 0 0 1;
 }
 
 /* ─── Home Screen: ListView ─── */
 
 ListView {
-    border: heavy white;
+    border: round white;
     padding: 1 2;
     text-align: left;
-    height: auto;
-    width: 30;
+    height: 13;
+    width: 100%;
     background: transparent;
+}
+
+ListView:focus {
+    border: round #FF8E53;
 }
 
 ListItem {
@@ -77,23 +116,23 @@ ListView > ListItem.--highlight {
 /* ─── Home Screen: Search Input ─── */
 
 #search-input {
-    border: heavy white;
+    border: round white;
     padding: 1 2;
-    width: 40;
+    width: 100%;
     height: 5;
     background: transparent;
     color: white;
 }
 
 #search-input:focus {
-    border: heavy #FF8E53;
+    border: round #FF8E53;
     color: white;
 }
 
 /* ─── Home Screen: Loading Indicator ─── */
 
 #loading-indicator {
-    width: 40;
+    width: 100%;
     height: 5;
     color: #FF8E53;
 }

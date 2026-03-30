@@ -165,20 +165,26 @@ class HomeScreen(Screen):
         return cls._logo_cache
 
     def compose(self) -> ComposeResult:
-        yield Static(self._get_logo(), id="logo")
-        yield Static(self.welcome_text, id="welcome")
-        with Horizontal(id="main-layout"):
-            with Vertical(id="left-column"):
-                yield ListView(
-                    ListItem(Label("  Album"), id="album"),
-                    ListItem(Label("  Artist"), id="artist"),
-                    ListItem(Label("  Song"), id="song"),
-                )
-            yield AnimatedConnector(id="connector")
-            with Vertical(id="right-column"):
-                yield Input(placeholder="Search...", id="search-input")
-                yield Static(id="search-status")
-                yield LoadingIndicator(id="loading-indicator")
+        with Vertical(id="home-shell"):
+            with Vertical(id="hero-panel", classes="home-panel"):
+                yield Static(self._get_logo(), id="logo")
+            with Horizontal(id="main-layout"):
+                with Vertical(id="info-panel", classes="home-panel"):
+                    yield Static("Welcome to PureArt", classes="panel-title")
+                    yield Static(self.welcome_text, id="welcome")
+                with Vertical(id="control-column"):
+                    with Vertical(id="selector-panel", classes="home-panel"):
+                        yield Static("Search by", classes="panel-title")
+                        yield ListView(
+                            ListItem(Label("  Album"), id="album"),
+                            ListItem(Label("  Artist"), id="artist"),
+                            ListItem(Label("  Song"), id="song"),
+                        )
+                    with Vertical(id="query-panel", classes="home-panel"):
+                        yield Static("Query", classes="panel-title")
+                        yield Input(placeholder="Search...", id="search-input")
+                        yield Static(id="search-status")
+                        yield LoadingIndicator(id="loading-indicator")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -198,7 +204,14 @@ class HomeScreen(Screen):
             item.query_one(Label).update(f"  {label_text}")
             item.remove_class("selected-item")
 
-        connector = self.query_one("#connector", AnimatedConnector)
+        connector = next(
+            (
+                widget
+                for widget in self.query("#connector")
+                if isinstance(widget, AnimatedConnector)
+            ),
+            None,
+        )
         if category in self.OPTIONS:
             selected_item = self.query_one(f"#{category}", ListItem)
             selected_item.query_one(Label).update(f"* {self.OPTIONS[category]}")
@@ -206,10 +219,11 @@ class HomeScreen(Screen):
             self.query_one("#search-input", Input).placeholder = (
                 f"Search {self.OPTIONS[category]}..."
             )
-            keys = list(self.OPTIONS.keys())
-            connector.position = keys.index(category)
-            connector.connector_visible = True
-        else:
+            if connector is not None:
+                keys = list(self.OPTIONS.keys())
+                connector.position = keys.index(category)
+                connector.connector_visible = True
+        elif connector is not None:
             connector.connector_visible = False
         self._refresh_footer_bindings()
 
