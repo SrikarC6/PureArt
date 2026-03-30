@@ -1,12 +1,44 @@
 """Backend module for PureArt — handles iTunes Search API calls and artwork downloads."""
 
+from __future__ import annotations
+
+import io
 import re
+from datetime import datetime
 from pathlib import Path
+from tempfile import NamedTemporaryFile
+from typing import Literal, TypedDict
 
 import requests
+from PIL import Image as PILImage
 
 
 BASE_URL = "https://itunes.apple.com/search"
+SearchType = Literal["album", "song", "artist"]
+
+
+class ArtworkResult(TypedDict):
+    artist_name: str
+    collection_name: str
+    release_year: str
+    artwork_link: str
+    preview_url: str
+
+
+class ArtworkError(Exception):
+    """Base class for artwork-related failures."""
+
+
+class ArtworkSearchError(ArtworkError):
+    """Raised when the iTunes search request cannot be completed."""
+
+
+class ArtworkDownloadError(ArtworkError):
+    """Raised when artwork cannot be downloaded or saved."""
+
+
+class ArtworkPreviewError(ArtworkError):
+    """Raised when an artwork preview cannot be fetched."""
 
 SEARCH_CONFIG: dict[str, dict[str, str]] = {
     "album":  {"entity": "album", "attribute": "albumTerm"},
@@ -17,8 +49,15 @@ SEARCH_CONFIG: dict[str, dict[str, str]] = {
 
 def _extract_year(date_str: str) -> str:
     """Extract the year from an ISO date string like '2022-01-07T00:00:00Z'."""
-    if date_str and len(date_str) >= 4:
-        return date_str[:4]
+    if not date_str:
+        return "Unknown"
+    try:
+        normalized = date_str.replace("Z", "+00:00")
+        return str(datetime.fromisoformat(normalized).year)
+    except ValueError:
+        match = re.match(r"^(\d{4})", date_str)
+        if match:
+            return match.group(1)
     return "Unknown"
 
 
@@ -29,7 +68,34 @@ def _sanitize_filename(name: str) -> str:
     return sanitized or "artwork"
 
 
-def search_artwork(search_type: str, name: str, limit: int = 200) -> list[dict[str, str]]:
+def _build_artwork_url(preview_url: str) -> str:
+    """Build a best-effort high-resolution artwork URL from the preview URL."""
+    if not preview_url:
+        return ""
+    return preview_url.replace("100x100bb", "10000x10000bb")
+
+
+def _normalize_result(item: dict[str, object]) -> ArtworkResult | None:
+    preview_url = str(item.get("artworkUrl100") or "").strip()
+    if not preview_url:
+        return None
+    artist_name = str(item.get("artistName") or "Unknown Artist")
+    collection_name = str(
+        item.get("collectionName") or item.get("trackName") or "Unknown"
+    )
+    release_year = _extract_year(str(item.get("releaseDate") or ""))
+    return ArtworkResult(
+        artist_name=artist_name,
+        collection_name=collection_name,
+        release_year=release_year,
+        artwork_link=_build_artwork_url(preview_url),
+        preview_url=preview_url,
+    )
+
+
+def search_artwork(
+    search_type: SearchType | str, name: str, limit: int = 200
+) -> list[ArtworkResult]:
     """Search the iTunes API for album artwork.
 
     Args:
@@ -43,41 +109,75 @@ def search_artwork(search_type: str, name: str, limit: int = 200) -> list[dict[s
 
     Raises:
         ValueError: If search_type is not valid.
-        requests.RequestException: If the API call fails.
+        ArtworkSearchError: If the API call fails or returns invalid JSON.
     """
     if search_type not in SEARCH_CONFIG:
         raise ValueError(
             f"Invalid search type '{search_type}'. Expected: {list(SEARCH_CONFIG)}"
         )
+    query = name.strip()
+    if not query:
+        return []
+    if limit < 1:
+        raise ValueError("Search limit must be at least 1")
+    limit = min(limit, 200)
 
     config = SEARCH_CONFIG[search_type]
     params = {
-        "term": name,
+        "term": query,
         "entity": config["entity"],
         "attribute": config["attribute"],
         "limit": limit,
     }
 
-    response = requests.get(BASE_URL, params=params, timeout=15)
-    response.raise_for_status()
-    data = response.json()
-    results = data.get("results", [])
+    try:
+        response = requests.get(BASE_URL, params=params, timeout=15)
+        response.raise_for_status()
+    except requests.Timeout as exc:
+        raise ArtworkSearchError(
+            "Apple Music search timed out. Please try again."
+        ) from exc
+    except requests.RequestException as exc:
+        raise ArtworkSearchError(
+            "Unable to reach Apple Music right now. Please try again."
+        ) from exc
 
-    return [
-        {
-            "artist_name": item.get("artistName", "Unknown Artist"),
-            "collection_name": item.get(
-                "collectionName", item.get("trackName", "Unknown")
-            ),
-            "release_year": _extract_year(item.get("releaseDate", "")),
-            "artwork_link": item.get("artworkUrl100", "").replace(
-                "100x100bb", "10000x10000bb"
-            ),
-            "preview_url": item.get("artworkUrl100", ""),
-        }
-        for item in results
-        if item.get("artworkUrl100")
-    ]
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise ArtworkSearchError(
+            "Apple Music returned an invalid response. Please try again."
+        ) from exc
+
+    raw_results = data.get("results", [])
+    if not isinstance(raw_results, list):
+        raise ArtworkSearchError("Apple Music returned an unexpected response format.")
+
+    normalized_results = []
+    for item in raw_results:
+        if not isinstance(item, dict):
+            continue
+        result = _normalize_result(item)
+        if result is not None:
+            normalized_results.append(result)
+    return normalized_results
+
+
+def fetch_preview_image(url: str, timeout: float = 10) -> PILImage.Image:
+    """Fetch and decode a preview image for terminal display."""
+    preview_url = url.strip()
+    if not preview_url:
+        raise ArtworkPreviewError("Missing preview image URL.")
+    try:
+        response = requests.get(preview_url, timeout=timeout)
+        response.raise_for_status()
+        return PILImage.open(io.BytesIO(response.content))
+    except requests.Timeout as exc:
+        raise ArtworkPreviewError("Preview image request timed out.") from exc
+    except requests.RequestException as exc:
+        raise ArtworkPreviewError("Unable to load preview image.") from exc
+    except OSError as exc:
+        raise ArtworkPreviewError("Preview image data could not be decoded.") from exc
 
 
 def download_artwork(
@@ -95,19 +195,46 @@ def download_artwork(
         The Path to the saved file.
 
     Raises:
-        requests.RequestException: If the download fails.
+        ArtworkDownloadError: If the download or file save fails.
     """
+    artwork_url = url.strip()
+    if not artwork_url:
+        raise ArtworkDownloadError("This result does not have a downloadable artwork URL.")
+
     filename = (
         f"{_sanitize_filename(collection_name)}_{_sanitize_filename(artist_name)}.jpg"
     )
     save_path = save_dir / filename
-    save_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        save_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ArtworkDownloadError(
+            f"Unable to create the save directory: {save_dir}"
+        ) from exc
 
-    response = requests.get(url, timeout=30, stream=True)
-    response.raise_for_status()
+    try:
+        response = requests.get(artwork_url, timeout=30, stream=True)
+        response.raise_for_status()
+    except requests.Timeout as exc:
+        raise ArtworkDownloadError("Artwork download timed out. Please try again.") from exc
+    except requests.RequestException as exc:
+        raise ArtworkDownloadError(
+            "Unable to download the selected artwork."
+        ) from exc
 
-    with open(save_path, "wb") as f:
-        for chunk in response.iter_content(chunk_size=8192):
-            f.write(chunk)
+    temp_path: Path | None = None
+    try:
+        with NamedTemporaryFile("wb", delete=False, dir=save_dir, suffix=".tmp") as temp_file:
+            temp_path = Path(temp_file.name)
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    temp_file.write(chunk)
+        temp_path.replace(save_path)
+    except OSError as exc:
+        if temp_path is not None and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
+        raise ArtworkDownloadError(
+            f"Unable to save artwork to {save_dir}."
+        ) from exc
 
     return save_path

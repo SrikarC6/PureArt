@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 from typing import ClassVar
 
 import pyfiglet
-import requests as req_lib
 from PIL import Image as PILImage
+from PIL import ImageOps
+from rich.markup import escape
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
@@ -31,7 +31,15 @@ from textual.widgets import (
     Static,
 )
 
-from backend import download_artwork, search_artwork
+from backend import (
+    ArtworkDownloadError,
+    ArtworkPreviewError,
+    ArtworkResult,
+    ArtworkSearchError,
+    download_artwork,
+    fetch_preview_image,
+    search_artwork,
+)
 
 # ─── Terminal image capability detection ──────────────────────────────
 from textual_image.renderable import Image as _ResolvedRenderable
@@ -118,6 +126,12 @@ class HomeScreen(Screen):
     }
 
     BINDINGS = [
+        Binding("1", "select_category('album')", "Album"),
+        Binding("2", "select_category('artist')", "Artist"),
+        Binding("3", "select_category('song')", "Song"),
+        Binding("ctrl+r", "submit_search", "Search"),
+        Binding("tab", "focus_next", "Next"),
+        Binding("shift+tab", "focus_previous", "Previous", show=False),
         Binding("escape", "app.quit", "Quit", show=False),
     ]
 
@@ -171,29 +185,34 @@ class HomeScreen(Screen):
     def on_mount(self) -> None:
         self.query_one("#search-status", Static).display = False
         self.query_one("#loading-indicator", LoadingIndicator).display = False
+        self.query_one(ListView).focus()
+        self._refresh_footer_bindings()
 
     # ── Selection handling ────────────────────────────────────────────
 
     def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
+        self._set_selected_category(event.item.id if event.item else None)
+
+    def _set_selected_category(self, category: str | None) -> None:
         for item_id, label_text in self.OPTIONS.items():
             item = self.query_one(f"#{item_id}", ListItem)
             item.query_one(Label).update(f"  {label_text}")
             item.remove_class("selected-item")
 
         connector = self.query_one("#connector", AnimatedConnector)
-        if event.item and event.item.id in self.OPTIONS:
-            event.item.query_one(Label).update(
-                f"* {self.OPTIONS[event.item.id]}"
-            )
-            event.item.add_class("selected-item")
+        if category in self.OPTIONS:
+            selected_item = self.query_one(f"#{category}", ListItem)
+            selected_item.query_one(Label).update(f"* {self.OPTIONS[category]}")
+            selected_item.add_class("selected-item")
             self.query_one("#search-input", Input).placeholder = (
-                f"Search {self.OPTIONS[event.item.id]}..."
+                f"Search {self.OPTIONS[category]}..."
             )
             keys = list(self.OPTIONS.keys())
-            connector.position = keys.index(event.item.id)
+            connector.position = keys.index(category)
             connector.connector_visible = True
         else:
             connector.connector_visible = False
+        self._refresh_footer_bindings()
 
     # ── Search handling ───────────────────────────────────────────────
 
@@ -205,11 +224,47 @@ class HomeScreen(Screen):
         return None
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
+        self._start_search(event.value)
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "search-input":
+            self._refresh_footer_bindings()
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action == "submit_search":
+            search_type = self._get_selected_type()
+            input_widget = self.query_one("#search-input", Input)
+            query = input_widget.value.strip()
+            return True if (search_type and query and input_widget.display) else False
+        return True
+
+    def action_select_category(self, category: str) -> None:
+        if category not in self.OPTIONS:
+            return
+        list_view = self.query_one(ListView)
+        list_view.index = list(self.OPTIONS).index(category)
+        self._set_selected_category(category)
+        list_view.focus()
+        self._refresh_footer_bindings()
+
+    def action_submit_search(self) -> None:
+        input_widget = self.query_one("#search-input", Input)
+        self._start_search(input_widget.value)
+
+    def action_focus_next(self) -> None:
+        self.app.action_focus_next()
+        self._refresh_footer_bindings()
+
+    def action_focus_previous(self) -> None:
+        self.app.action_focus_previous()
+        self._refresh_footer_bindings()
+
+    def _start_search(self, value: str) -> None:
         search_type = self._get_selected_type()
         if not search_type:
             self.notify("Please select a search category first", severity="warning")
             return
-        query = event.value.strip()
+        query = value.strip()
         if not query:
             self.notify("Please enter a search term", severity="warning")
             return
@@ -220,13 +275,14 @@ class HomeScreen(Screen):
     def _set_loading(self, query: str | None = None) -> None:
         is_loading = query is not None
         self.query_one("#search-input", Input).display = not is_loading
-        
+
         status = self.query_one("#search-status", Static)
         status.display = is_loading
         if query:
             status.update(f"Searching for '{query}'...")
-            
+
         self.query_one("#loading-indicator", LoadingIndicator).display = is_loading
+        self._refresh_footer_bindings()
 
     @work(thread=True, exclusive=True)
     def _perform_search(self, search_type: str, query: str) -> None:
@@ -235,14 +291,19 @@ class HomeScreen(Screen):
             self.app.call_from_thread(
                 self._on_search_complete, search_type, query, results
             )
-        except Exception as exc:
+        except (ArtworkSearchError, ValueError) as exc:
             self.app.call_from_thread(self._on_search_error, str(exc))
+        except Exception:
+            self.app.call_from_thread(
+                self._on_search_error,
+                "Something unexpected went wrong while searching.",
+            )
 
     def _on_search_complete(
         self,
         search_type: str,
         query: str,
-        results: list[dict[str, str]],
+        results: list[ArtworkResult],
     ) -> None:
         self._set_loading(None)
         if not results:
@@ -254,6 +315,10 @@ class HomeScreen(Screen):
         self._set_loading(None)
         self.notify(f"Search failed: {error_msg}", severity="error")
 
+    def _refresh_footer_bindings(self) -> None:
+        if self.is_mounted:
+            self.query_one(Footer).refresh_bindings()
+
 
 # ─── Result Card ─────────────────────────────────────────────────────
 
@@ -264,31 +329,45 @@ class ResultCard(Widget):
     class DownloadRequested(Message):
         """Posted when the user clicks Download on this card."""
 
-        def __init__(self, result: dict[str, str]) -> None:
+        def __init__(self, result: ArtworkResult) -> None:
             super().__init__()
             self.result = result
 
-    def __init__(self, result: dict[str, str], card_index: int, **kwargs) -> None:
+    def __init__(
+        self,
+        result: ArtworkResult,
+        card_index: int,
+        preview_image: PILImage.Image | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self.result = result
         self.card_index = card_index
+        self.preview_image = preview_image
 
     def compose(self) -> ComposeResult:
+        title = escape(self.result["collection_name"])
+        artist = escape(self.result["artist_name"])
+        year = escape(self.result["release_year"])
         with Vertical(classes="result-card"):
             if SUPPORTS_NATIVE_IMAGES:
-                yield TerminalImage(None, id=f"img-{self.card_index}",
-                                    classes="result-card-image")
+                with Horizontal(classes="result-card-image-row"):
+                    yield TerminalImage(
+                        None,
+                        id=f"img-{self.card_index}",
+                        classes="result-card-image",
+                    )
             yield Label(
-                f"[bold]{self.result['collection_name']}[/bold]",
+                f"[bold]{title}[/bold]",
                 classes="result-card-title",
             )
-            yield Label(self.result["artist_name"], classes="result-card-artist")
-            yield Label(self.result["release_year"], classes="result-card-year")
+            yield Label(artist, classes="result-card-artist")
+            yield Label(year, classes="result-card-year")
 
             if not SUPPORTS_NATIVE_IMAGES:
-                link = self.result.get("artwork_link", "")
+                link = self.result.get("artwork_link", "").replace("'", "\\'")
                 yield Label(
-                    f"[@click=app.open_link('{link}')]→ View full resolution[/]",
+                    f"[@click=app.open_url('{link}')]→ View full resolution[/]",
                     classes="result-card-link",
                 )
 
@@ -299,19 +378,8 @@ class ResultCard(Widget):
             )
 
     def on_mount(self) -> None:
-        if SUPPORTS_NATIVE_IMAGES and self.result.get("preview_url"):
-            self._load_preview()
-
-    @work(thread=True)
-    def _load_preview(self) -> None:
-        """Download the 100×100 thumbnail and set it on the image widget."""
-        try:
-            resp = req_lib.get(self.result["preview_url"], timeout=10)
-            resp.raise_for_status()
-            img = PILImage.open(io.BytesIO(resp.content))
-            self.app.call_from_thread(self._set_preview, img)
-        except Exception:
-            pass  # Fail silently — card still shows text info
+        if SUPPORTS_NATIVE_IMAGES and self.preview_image is not None:
+            self._set_preview(self.preview_image)
 
     def _set_preview(self, img: PILImage.Image) -> None:
         try:
@@ -329,7 +397,10 @@ class ResultCard(Widget):
 class SaveScreen(ModalScreen[Path | None]):
     """Modal directory picker for choosing where to save artwork."""
 
-    BINDINGS = [Binding("escape", "cancel", "Cancel")]
+    BINDINGS = [
+        Binding("ctrl+s", "confirm_save", "Save Here"),
+        Binding("escape", "cancel", "Cancel"),
+    ]
 
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
@@ -345,6 +416,11 @@ class SaveScreen(ModalScreen[Path | None]):
             with Horizontal(id="save-buttons"):
                 yield Button("Save Here", variant="primary", id="save-confirm")
                 yield Button("Cancel", variant="default", id="save-cancel")
+            yield Footer()
+
+    def on_mount(self) -> None:
+        self.query_one("#save-tree", DirectoryTree).focus()
+        self.query_one(Footer).refresh_bindings()
 
     def on_directory_tree_directory_selected(
         self, event: DirectoryTree.DirectorySelected
@@ -356,9 +432,12 @@ class SaveScreen(ModalScreen[Path | None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "save-confirm":
-            self.dismiss(self._selected_path)
+            self.action_confirm_save()
         elif event.button.id == "save-cancel":
             self.dismiss(None)
+
+    def action_confirm_save(self) -> None:
+        self.dismiss(self._selected_path)
 
     def action_cancel(self) -> None:
         self.dismiss(None)
@@ -372,8 +451,11 @@ class ResultsScreen(Screen):
 
     BINDINGS = [
         Binding("escape", "go_back", "Back"),
-        Binding("left", "prev_page", "Previous page", show=False),
-        Binding("right", "next_page", "Next page", show=False),
+        Binding("alt+p", "prev_page", "Previous page"),
+        Binding("alt+n", "next_page", "Next page"),
+        Binding("/", "focus_filter", "Filter"),
+        Binding("tab", "focus_next", "Next"),
+        Binding("shift+tab", "focus_previous", "Previous", show=False),
     ]
 
     current_page: reactive[int] = reactive(0)
@@ -382,18 +464,22 @@ class ResultsScreen(Screen):
         self,
         search_type: str,
         query: str,
-        results: list[dict[str, str]],
+        results: list[ArtworkResult],
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.search_type = search_type
         self.query_text = query
         self.all_results = results
-        self.filtered_results: list[dict[str, str]] = list(results)
+        self.filtered_results: list[ArtworkResult] = list(results)
+        self.preview_cache: dict[str, PILImage.Image] = {}
+        self._pending_previews: set[str] = set()
+        self._visible_cards: dict[str, ResultCard] = {}
 
     def compose(self) -> ComposeResult:
+        escaped_query = escape(self.query_text)
         yield Static(
-            f"[bold]Results for[/bold] [italic #FF8E53]'{self.query_text}'[/italic #FF8E53] "
+            f"[bold]Results for[/bold] [italic #FF8E53]'{escaped_query}'[/italic #FF8E53] "
             f"[dim]({len(self.all_results)} results)[/dim]",
             id="results-header",
         )
@@ -412,6 +498,7 @@ class ResultsScreen(Screen):
 
     def on_mount(self) -> None:
         self._render_page()
+        self._refresh_footer_bindings()
 
     # ── Pagination ────────────────────────────────────────────────────
 
@@ -424,19 +511,45 @@ class ResultsScreen(Screen):
     def watch_current_page(self, _page: int) -> None:
         if self.is_mounted:
             self._render_page()
+            self._refresh_footer_bindings()
 
     def _render_page(self) -> None:
         container = self.query_one("#results-container", VerticalScroll)
         container.remove_children()
+        self._visible_cards.clear()
 
         start = self.current_page * RESULTS_PER_PAGE
         end = start + RESULTS_PER_PAGE
         page_results = self.filtered_results[start:end]
 
-        # Mount all cards within a single styled Grid
-        cards = [ResultCard(r, start + i) for i, r in enumerate(page_results)]
-        if cards:
-            container.mount(Grid(*cards, id="results-grid"))
+        if page_results:
+            cards: list[ResultCard] = []
+            for i, result in enumerate(page_results):
+                preview_url = self._get_preview_source(result)
+                preview_image = self.preview_cache.get(preview_url)
+                card = ResultCard(result, start + i, preview_image=preview_image)
+                cards.append(card)
+                self._visible_cards[preview_url] = card
+            grid = Grid(*cards, classes="results-grid")
+            grid.styles.grid_size_columns = 1 if self.size.width < 120 else 2
+            container.mount(grid)
+            if SUPPORTS_NATIVE_IMAGES:
+                for result in page_results:
+                    preview_url = result.get("preview_url", "")
+                    if (
+                        preview_url
+                        and preview_url not in self.preview_cache
+                        and preview_url not in self._pending_previews
+                    ):
+                        self._pending_previews.add(preview_url)
+                        self._load_preview(preview_url)
+        else:
+            empty_message = (
+                "No matching results found."
+                if self.filtered_results != self.all_results
+                else "No results available."
+            )
+            container.mount(Static(empty_message, classes="empty-results"))
 
         # Update pagination UI
         self.query_one("#page-indicator", Label).update(
@@ -446,6 +559,11 @@ class ResultsScreen(Screen):
         self.query_one("#next-btn", Button).disabled = (
             self.current_page >= self.total_pages - 1
         )
+        self._refresh_footer_bindings()
+
+    def on_resize(self) -> None:
+        if self.is_mounted:
+            self._render_page()
 
     # ── Filtering ─────────────────────────────────────────────────────
 
@@ -465,12 +583,16 @@ class ResultsScreen(Screen):
                 or query in r.get("collection_name", "").lower()
                 or query in r.get("release_year", "").lower()
             ]
-        self.current_page = 0
-        self._render_page()
+        if self.current_page != 0:
+            self.current_page = 0
+        else:
+            self._render_page()
+        escaped_query = escape(self.query_text)
         self.query_one("#results-header", Static).update(
-            f"[bold]Results for[/bold] [italic #FF8E53]'{self.query_text}'[/italic #FF8E53] "
+            f"[bold]Results for[/bold] [italic #FF8E53]'{escaped_query}'[/italic #FF8E53] "
             f"[dim]({len(self.filtered_results)} of {len(self.all_results)} results)[/dim]"
         )
+        self._refresh_footer_bindings()
 
     # ── Download ──────────────────────────────────────────────────────
 
@@ -479,7 +601,7 @@ class ResultsScreen(Screen):
     ) -> None:
         self._initiate_download(event.result)
 
-    def _initiate_download(self, result: dict[str, str]) -> None:
+    def _initiate_download(self, result: ArtworkResult) -> None:
         def on_save_path(path: Path | None) -> None:
             if path is not None:
                 self._download_to_path(result, path)
@@ -487,7 +609,7 @@ class ResultsScreen(Screen):
         self.app.push_screen(SaveScreen(), callback=on_save_path)
 
     @work(thread=True)
-    def _download_to_path(self, result: dict[str, str], save_dir: Path) -> None:
+    def _download_to_path(self, result: ArtworkResult, save_dir: Path) -> None:
         try:
             saved = download_artwork(
                 url=result["artwork_link"],
@@ -498,18 +620,84 @@ class ResultsScreen(Screen):
             self.app.call_from_thread(
                 self.notify, f"✓ Downloaded: {saved.name}", severity="information"
             )
-        except Exception as exc:
+        except ArtworkDownloadError as exc:
             self.app.call_from_thread(
                 self.notify, f"Download failed: {exc}", severity="error"
             )
+        except Exception:
+            self.app.call_from_thread(
+                self.notify,
+                "Download failed: Something unexpected went wrong.",
+                severity="error",
+            )
+
+    @work(thread=True)
+    def _load_preview(self, preview_url: str) -> None:
+        try:
+            image = fetch_preview_image(preview_url)
+            image = ImageOps.contain(image.convert("RGB"), (768, 768))
+            self.app.call_from_thread(self._cache_and_apply_preview, preview_url, image)
+        except ArtworkPreviewError:
+            fallback_url = self._get_preview_fallback(preview_url)
+            if fallback_url and fallback_url != preview_url:
+                try:
+                    image = fetch_preview_image(fallback_url)
+                    image = ImageOps.contain(image.convert("RGB"), (768, 768))
+                    self.app.call_from_thread(
+                        self._cache_and_apply_preview, preview_url, image
+                    )
+                    return
+                except ArtworkPreviewError:
+                    pass
+            self.app.call_from_thread(self._mark_preview_complete, preview_url)
+
+    def _cache_and_apply_preview(
+        self, preview_url: str, image: PILImage.Image
+    ) -> None:
+        self._pending_previews.discard(preview_url)
+        self.preview_cache[preview_url] = image
+        card = self._visible_cards.get(preview_url)
+        if card is not None and card.is_mounted:
+            card._set_preview(image)
+
+    def _mark_preview_complete(self, preview_url: str) -> None:
+        self._pending_previews.discard(preview_url)
+
+    def _get_preview_source(self, result: ArtworkResult) -> str:
+        preview_url = result.get("preview_url", "")
+        return preview_url.replace("100x100bb", "600x600bb")
+
+    def _get_preview_fallback(self, preview_url: str) -> str:
+        return preview_url.replace("600x600bb", "100x100bb")
 
     # ── Navigation ────────────────────────────────────────────────────
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool | None:
+        if action in {"prev_page", "next_page"}:
+            if self.total_pages <= 1:
+                return False
+            if action == "prev_page":
+                return None if self.current_page <= 0 else True
+            return None if self.current_page >= self.total_pages - 1 else True
+        return True
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "prev-btn":
             self.action_prev_page()
         elif event.button.id == "next-btn":
             self.action_next_page()
+
+    def action_focus_filter(self) -> None:
+        self.query_one("#filter-input", Input).focus()
+        self._refresh_footer_bindings()
+
+    def action_focus_next(self) -> None:
+        self.app.action_focus_next()
+        self._refresh_footer_bindings()
+
+    def action_focus_previous(self) -> None:
+        self.app.action_focus_previous()
+        self._refresh_footer_bindings()
 
     def action_go_back(self) -> None:
         self.app.pop_screen()
@@ -521,6 +709,10 @@ class ResultsScreen(Screen):
     def action_next_page(self) -> None:
         if self.current_page < self.total_pages - 1:
             self.current_page += 1
+
+    def _refresh_footer_bindings(self) -> None:
+        if self.is_mounted:
+            self.query_one(Footer).refresh_bindings()
 
 
 # ─── App ──────────────────────────────────────────────────────────────
