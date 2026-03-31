@@ -203,5 +203,9 @@ cython_debug/
 
 # Marimo
 marimo/_static/
+
+# Mac
+.DS_Store
+**/.DS_Store
 marimo/_lsp/
 __marimo__/
