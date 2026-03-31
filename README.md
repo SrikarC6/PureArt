@@ -174,4 +174,4 @@ MIT — see [LICENSE](LICENSE) for details.
 
 ## Author
 
-Made by [Srikar Chundury](https://github.com/SrikarC6)
+Made by [Srikar Chitturi](https://github.com/SrikarC6)
