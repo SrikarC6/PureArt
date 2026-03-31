@@ -31,7 +31,7 @@ from textual.widgets import (
     Static,
 )
 
-from backend import (
+from pureart.backend import (
     ArtworkDownloadError,
     ArtworkPreviewError,
     ArtworkResult,
@@ -716,7 +716,7 @@ class PureArt(App):
     """PureArt — Album Art Downloader TUI."""
 
     TITLE = "PureArt"
-    CSS_PATH = "styles.tcss"
+    CSS_PATH = Path(__file__).parent / "styles.tcss"
     SCREENS = {"home": HomeScreen}
     BINDINGS = [Binding("ctrl+q", "quit", "Quit")]
 
