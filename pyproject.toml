@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pureart"
-version = "1.0.1"
+version = "1.0.2"
 description = "TUI app to download high-resolution album artwork via the iTunes Search API"
 readme = "README.md"
 license = { file = "LICENSE" }
