@@ -1,0 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pureart"
+version = "1.0.0"
+description = "TUI app to download high-resolution album artwork via the iTunes Search API"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.11"
+dependencies = [
+    "textual>=8.1.1",
+    "textual-image>=0.8.5",
+    "requests>=2.32.5",
+    "Pillow>=12.1.1",
+    "pyfiglet>=1.0.4",
+    "rich>=14.3.3",
+]
+
+[project.scripts]
+pureart = "pureart.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/SrikarC6/pureart"
+Repository = "https://github.com/SrikarC6/pureart"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/pureart"]
