@@ -98,7 +98,7 @@ class HomeScreen(Screen):
     @classmethod
     def _get_logo(cls) -> Text:
         if cls._logo_cache is None:
-            logo = pyfiglet.figlet_format("PureArt", font="larry3d", width=200)
+            logo = pyfiglet.figlet_format("PureArt", font="isometric1", width=200)
             text = Text(logo)
             length = len(logo)
             text.stylize("bold #FF6B6B", 0, length // 3)
@@ -412,8 +412,8 @@ class ResultsScreen(Screen):
 
     BINDINGS = [
         Binding("escape", "go_back", "Back"),
-        Binding("ctrl+right", "prev_page", "Previous page"),
-        Binding("ctrl+left", "next_page", "Next page"),
+        Binding("left", "prev_page", "Previous page"),
+        Binding("right", "next_page", "Next page"),
         Binding("/", "focus_filter", "Filter"),
         Binding("tab", "focus_next", "Next"),
         Binding("shift+tab", "focus_previous", "Previous"),

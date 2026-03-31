@@ -9,7 +9,6 @@ Screen {
 }
 
 .home-panel {
-    border: round #FFE500;
     background: transparent;
     padding: 1 2;
 }
@@ -17,7 +16,7 @@ Screen {
 #hero-panel {
     width: 100%;
     height: auto;
-    margin: 0 0 1 0;
+    margin: 0 0 0 0;
 }
 
 #logo {
@@ -43,7 +42,7 @@ Screen {
 #control-column {
     width: 1fr;
     height: auto;
-    padding: 1 0 1 0;
+    padding: 0 0 1 0;
 }
 
 #selector-panel {
