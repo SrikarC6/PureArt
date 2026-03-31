@@ -9,13 +9,13 @@ PureArt is a terminal-based app that lets you search for any album, artist, or s
 ## Screenshots
 
 ### Main Menu
-![Main Menu](screenshots/main_menu.png)
+![Main Menu](assets/main-menu.png)
 
 ### Results
-![Results](screenshots/results.png)
+![Results](assets/search-results.png)
 
 ### Save Dialog
-![Save Dialog](screenshots/save_dialog.png)
+![Save Dialog](assets/save-menu.png)
 
 ---
 
