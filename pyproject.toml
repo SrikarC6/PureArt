@@ -24,6 +24,7 @@ pureart = "pureart.__main__:main"
 [project.urls]
 Homepage = "https://github.com/SrikarC6/pureart"
 Repository = "https://github.com/SrikarC6/pureart"
+Changelog = "https://github.com/SrikarC6/PureArt/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/pureart"]
