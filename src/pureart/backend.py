@@ -15,6 +15,13 @@ from PIL import Image as PILImage
 
 BASE_URL = "https://itunes.apple.com/search"
 SearchType = Literal["album", "song", "artist"]
+ArtworkQuality = Literal["low", "medium", "high"]
+
+ARTWORK_DIMENSIONS: dict[ArtworkQuality, str] = {
+    "low": "600x600",
+    "medium": "1280x1280",
+    "high": "10000x10000",
+}
 
 
 class ArtworkResult(TypedDict):
@@ -68,11 +75,54 @@ def _sanitize_filename(name: str) -> str:
     return sanitized or "artwork"
 
 
+def replace_artwork_dimensions(url: str, dimensions: str) -> str:
+    """Replace the image size token in an artwork URL while preserving its suffix."""
+    artwork_url = url.strip()
+    if not artwork_url:
+        return ""
+    prefix, separator, filename = artwork_url.rpartition("/")
+    updated_filename = re.sub(r"\d+x\d+", dimensions, filename, count=1)
+    if not separator:
+        return updated_filename
+    return f"{prefix}{separator}{updated_filename}"
+
+
+def artwork_url_for_quality(
+    preview_url: str, quality: ArtworkQuality | str = "high"
+) -> str:
+    """Build an artwork URL for the requested quality from the preview URL."""
+    if quality not in ARTWORK_DIMENSIONS:
+        raise ValueError(
+            f"Invalid quality '{quality}'. Expected: {list(ARTWORK_DIMENSIONS)}"
+        )
+    return replace_artwork_dimensions(preview_url, ARTWORK_DIMENSIONS[quality])
+
+
 def _build_artwork_url(preview_url: str) -> str:
     """Build a best-effort high-resolution artwork URL from the preview URL."""
     if not preview_url:
         return ""
-    return preview_url.replace("100x100bb", "10000x10000bb")
+    return artwork_url_for_quality(preview_url, "high")
+
+
+def apply_quality_to_result(
+    result: ArtworkResult, quality: ArtworkQuality | str
+) -> ArtworkResult:
+    """Return a copy of a result with its downloadable artwork URL rewritten."""
+    return ArtworkResult(
+        artist_name=result["artist_name"],
+        collection_name=result["collection_name"],
+        release_year=result["release_year"],
+        artwork_link=artwork_url_for_quality(result["preview_url"], quality),
+        preview_url=result["preview_url"],
+    )
+
+
+def apply_quality_to_results(
+    results: list[ArtworkResult], quality: ArtworkQuality | str
+) -> list[ArtworkResult]:
+    """Return result copies with artwork links set to the requested quality."""
+    return [apply_quality_to_result(result, quality) for result in results]
 
 
 def _normalize_result(item: dict[str, object]) -> ArtworkResult | None:

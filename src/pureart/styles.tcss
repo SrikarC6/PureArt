@@ -5,18 +5,18 @@ Screen {
 #home-shell {
     width: 100%;
     height: 1fr;
-    padding: 1 2;
+    padding: 0 2 1 2;
 }
 
 .home-panel {
     background: transparent;
-    padding: 1 2;
+    padding: 0;
 }
 
 #hero-panel {
     width: 100%;
     height: auto;
-    margin: 0 0 0 0;
+    margin: 0 0 1 0;
 }
 
 #logo {
@@ -27,37 +27,51 @@ Screen {
 
 #main-layout {
     width: 100%;
-    height: auto;
-    align: center top;
-    content-align: center top;
-    margin: 0 0 1 0;
+    height: 1fr;
+    align: left top;
+    content-align: left top;
+    margin: 0;
 }
 
 #info-panel {
     width: 1fr;
     height: 100%;
-    margin: 0 1 0 0;
+    margin: 0 2 0 0;
 }
 
 #control-column {
     width: 1fr;
-    height: auto;
+    height: 1fr;
     padding: 0 0 1 0;
 }
 
-#selector-panel {
+#selection-row {
     width: 100%;
     height: auto;
     margin: 0 0 1 0;
+}
+
+#selector-panel {
+    width: 1fr;
+    height: auto;
+    margin: 0 1 0 0;
     border: none;
-    padding: 1 0 0 1;
+    padding: 0;
+}
+
+#quality-panel {
+    width: 1fr;
+    height: auto;
+    margin: 0 0 0 1;
+    border: none;
+    padding: 0;
 }
 
 #query-panel {
     width: 100%;
     height: auto;
     border: none;
-    padding: 0 0 0 1;
+    padding: 0;
 }
 
 .panel-title {
@@ -77,42 +91,46 @@ Screen {
     color: $text-muted;
 }
 
-ListView {
-    border: round #FFFFFF;
-    background: transparent;
-    padding: 1 2;
-    text-align: left;
-    height: 13;
-    width: 100%;
+#welcome MarkdownParagraph {
+    margin: 0 0 1 0;
 }
 
-ListView:focus {
+#welcome MarkdownH2 {
+    margin: 1 0 1 0;
+}
+
+#search-type-set,
+#quality-set {
+    border: round #FFFFFF;
+    background: transparent;
+    padding: 1 1;
+    width: 100%;
+    height: auto;
+    min-height: 9;
+}
+
+#search-type-set:focus,
+#quality-set:focus {
     border: round #FFE500;
 }
 
-ListItem {
-    background: transparent;
-    padding: 1 1;
-    height: 3;
-}
-
-ListItem.selected-item {
-    background: #FFE500;
-    color: #0F0F0F;
-    text-style: bold;
-}
-
-ListView > ListItem.--highlight {
-    background: transparent;
+RadioButton {
+    padding: 0 0 1 1;
 }
 
 #search-input {
     border: round #FFFFFF;
     background: transparent;
     color: white;
-    padding: 1 2;
+    padding: 0 2;
     width: 100%;
-    height: 5;
+    height: 3;
+}
+
+#search-help {
+    width: 100%;
+    padding: 1 0 0 0;
+    color: $text-muted;
 }
 
 #search-input:focus {
@@ -131,7 +149,7 @@ Input > .input--cursor {
 
 #loading-indicator {
     width: 100%;
-    height: 5;
+    height: 3;
     color: #FFE500;
 }
 

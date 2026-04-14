@@ -25,19 +25,24 @@ from textual.widgets import (
     Footer,
     Input,
     Label,
-    ListItem,
-    ListView,
     LoadingIndicator,
+    Markdown,
+    RadioButton,
+    RadioSet,
     Static,
 )
 
 from pureart.backend import (
     ArtworkDownloadError,
+    ArtworkQuality,
     ArtworkPreviewError,
     ArtworkResult,
     ArtworkSearchError,
+    SearchType,
+    apply_quality_to_results,
     download_artwork,
     fetch_preview_image,
+    replace_artwork_dimensions,
     search_artwork,
 )
 
@@ -56,6 +61,11 @@ FILTER_PLACEHOLDERS = {
     "artist": "Filter by album or year...",
     "song": "Filter by artist, album, or year...",
 }
+QUALITY_LABELS: dict[ArtworkQuality, str] = {
+    "low": "Low (600x600 px)",
+    "medium": "Medium (1280x1280 px)",
+    "high": "High (best available)",
+}
 
 # ─── Home Screen ─────────────────────────────────────────────────────
 
@@ -68,6 +78,8 @@ class HomeScreen(Screen):
         "artist": "Artist",
         "song": "Song",
     }
+    DEFAULT_SEARCH_TYPE: ClassVar[SearchType] = "album"
+    DEFAULT_QUALITY: ClassVar[ArtworkQuality] = "high"
 
     BINDINGS = [
         Binding("1", "select_category('album')", "Album"),
@@ -78,18 +90,21 @@ class HomeScreen(Screen):
         Binding("shift+tab", "focus_previous", "Previous"),
     ]
 
-    welcome_text = """[bold]TUI app to download album art[/bold]
+    welcome_text = """TUI app to download album art
 
-[underline]How to use:[/underline]
-1. Select to search for an album name, artist name, or song name
-2. Search for the respective name
-3. Scroll through the options and download the one you want
-4. Enjoy!
+## How to use
 
-[underline]Disclaimer:[/underline]
-* Not every terminal supports inline image viewing
-* If your terminal app supports it, a preview of the album art will be automatically visible
-* If not, you can manually click on each link for a preview of each album cover and download the one you want
+1. Select to search for an album name, artist name, or song name.
+2. Choose the download quality you want.
+3. Search for the respective name.
+4. Scroll through the options and download the one you want.
+5. Enjoy!
+
+## Disclaimer
+
+- Not every terminal supports inline image viewing.
+- If your terminal app supports it, a preview of the album art will be automatically visible.
+- If not, you can manually click on each link for a preview of each album cover and download the one you want.
 """
 
     # Cache the logo so pyfiglet only runs once
@@ -107,6 +122,10 @@ class HomeScreen(Screen):
             cls._logo_cache = text
         return cls._logo_cache
 
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._pending_quality: ArtworkQuality = self.DEFAULT_QUALITY
+
     def compose(self) -> ComposeResult:
         with Vertical(id="home-shell"):
             with Vertical(id="hero-panel", classes="home-panel"):
@@ -114,17 +133,37 @@ class HomeScreen(Screen):
             with Horizontal(id="main-layout"):
                 with Vertical(id="info-panel", classes="home-panel"):
                     yield Static("Welcome to PureArt", classes="panel-title")
-                    yield Static(self.welcome_text, id="welcome")
-                with Vertical(id="control-column"):
-                    with Vertical(id="selector-panel", classes="home-panel"):
-                        yield Static("Search by", classes="panel-title")
-                        yield ListView(
-                            ListItem(Label("  Album"), id="album"),
-                            ListItem(Label("  Artist"), id="artist"),
-                            ListItem(Label("  Song"), id="song"),
-                        )
+                    yield Markdown(self.welcome_text, id="welcome")
+                with VerticalScroll(id="control-column"):
+                    with Horizontal(id="selection-row"):
+                        with Vertical(id="selector-panel", classes="home-panel"):
+                            yield Static("Search by", classes="panel-title")
+                            with RadioSet(id="search-type-set", compact=True):
+                                yield RadioButton(
+                                    self.OPTIONS["album"],
+                                    id="search-album",
+                                    value=True,
+                                )
+                                yield RadioButton(
+                                    self.OPTIONS["artist"], id="search-artist"
+                                )
+                                yield RadioButton(self.OPTIONS["song"], id="search-song")
+                        with Vertical(id="quality-panel", classes="home-panel"):
+                            yield Static("Download quality", classes="panel-title")
+                            with RadioSet(id="quality-set", compact=True):
+                                yield RadioButton(
+                                    QUALITY_LABELS["low"], id="quality-low"
+                                )
+                                yield RadioButton(
+                                    QUALITY_LABELS["medium"], id="quality-medium"
+                                )
+                                yield RadioButton(
+                                    QUALITY_LABELS["high"],
+                                    id="quality-high",
+                                    value=True,
+                                )
                     with Vertical(id="query-panel", classes="home-panel"):
-                        yield Static("Query", classes="panel-title")
+                        yield Static("Search", classes="panel-title")
                         yield Input(placeholder="Search...", id="search-input")
                         yield Static(id="search-status")
                         yield LoadingIndicator(id="loading-indicator")
@@ -133,37 +172,51 @@ class HomeScreen(Screen):
     def on_mount(self) -> None:
         self.query_one("#search-status", Static).display = False
         self.query_one("#loading-indicator", LoadingIndicator).display = False
-        self.query_one(ListView).focus()
+        self._set_selected_category(self.DEFAULT_SEARCH_TYPE)
+        self.query_one("#search-type-set", RadioSet).focus()
         self._refresh_footer_bindings()
 
     # ── Selection handling ────────────────────────────────────────────
 
-    def on_list_view_highlighted(self, event: ListView.Highlighted) -> None:
-        self._set_selected_category(event.item.id if event.item else None)
+    def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
+        if event.radio_set.id == "search-type-set":
+            pressed_id = event.pressed.id or ""
+            category = pressed_id.removeprefix("search-")
+            self._set_selected_category(category if category in self.OPTIONS else None)
+            return
+        if event.radio_set.id == "quality-set":
+            self._refresh_footer_bindings()
 
     def _set_selected_category(self, category: str | None) -> None:
-        for item_id, label_text in self.OPTIONS.items():
-            item = self.query_one(f"#{item_id}", ListItem)
-            item.query_one(Label).update(f"  {label_text}")
-            item.remove_class("selected-item")
-
         if category in self.OPTIONS:
-            selected_item = self.query_one(f"#{category}", ListItem)
-            selected_item.query_one(Label).update(f"* {self.OPTIONS[category]}")
-            selected_item.add_class("selected-item")
             self.query_one("#search-input", Input).placeholder = (
                 f"Search {self.OPTIONS[category]}..."
             )
+        else:
+            self.query_one("#search-input", Input).placeholder = "Search..."
         self._refresh_footer_bindings()
 
     # ── Search handling ───────────────────────────────────────────────
 
-    def _get_selected_type(self) -> str | None:
-        for item_id in self.OPTIONS:
-            item = self.query_one(f"#{item_id}", ListItem)
-            if "selected-item" in item.classes:
-                return item_id
+    def _get_selected_type(self) -> SearchType | None:
+        radio_set = self.query_one("#search-type-set", RadioSet)
+        pressed = radio_set.pressed_button
+        if pressed is None or pressed.id is None:
+            return None
+        category = pressed.id.removeprefix("search-")
+        if category in self.OPTIONS:
+            return category
         return None
+
+    def _get_selected_quality(self) -> ArtworkQuality:
+        radio_set = self.query_one("#quality-set", RadioSet)
+        pressed = radio_set.pressed_button
+        if pressed is None or pressed.id is None:
+            return self.DEFAULT_QUALITY
+        quality = pressed.id.removeprefix("quality-")
+        if quality in QUALITY_LABELS:
+            return quality
+        return self.DEFAULT_QUALITY
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
         self._start_search(event.value)
@@ -183,10 +236,9 @@ class HomeScreen(Screen):
     def action_select_category(self, category: str) -> None:
         if category not in self.OPTIONS:
             return
-        list_view = self.query_one(ListView)
-        list_view.index = list(self.OPTIONS).index(category)
+        self.query_one(f"#search-{category}", RadioButton).value = True
         self._set_selected_category(category)
-        list_view.focus()
+        self.query_one("#search-type-set", RadioSet).focus()
         self._refresh_footer_bindings()
 
     def action_submit_search(self) -> None:
@@ -206,6 +258,8 @@ class HomeScreen(Screen):
         if not search_type:
             self.notify("Please select a search category first", severity="warning")
             return
+        quality = self._get_selected_quality()
+        self._pending_quality = quality
         query = value.strip()
         if not query:
             self.notify("Please enter a search term", severity="warning")
@@ -251,7 +305,11 @@ class HomeScreen(Screen):
         if not results:
             self.notify(f"No results found for '{query}'", severity="warning")
             return
-        self.app.push_screen(ResultsScreen(search_type, query, results))
+        quality = self._pending_quality
+        quality_results = apply_quality_to_results(results, quality)
+        self.app.push_screen(
+            ResultsScreen(search_type, query, quality, quality_results)
+        )
 
     def _on_search_error(self, error_msg: str) -> None:
         self._set_loading(None)
@@ -313,7 +371,7 @@ class ResultCard(Widget, can_focus=True):
             if not SUPPORTS_NATIVE_IMAGES:
                 link = self.result.get("artwork_link", "").replace("'", "\\'")
                 yield Label(
-                    f"[@click=app.open_url('{link}')]→ View full resolution[/]",
+                    f"[@click=app.open_url('{link}')]→ Open selected artwork[/]",
                     classes="result-card-link",
                 )
 
@@ -425,12 +483,14 @@ class ResultsScreen(Screen):
         self,
         search_type: str,
         query: str,
+        quality: ArtworkQuality,
         results: list[ArtworkResult],
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.search_type = search_type
         self.query_text = query
+        self.download_quality = quality
         self.all_results = results
         self.filtered_results: list[ArtworkResult] = list(results)
         self.preview_cache: dict[str, PILImage.Image] = {}
@@ -439,12 +499,7 @@ class ResultsScreen(Screen):
         self._visible_cards: dict[str, ResultCard] = {}
 
     def compose(self) -> ComposeResult:
-        escaped_query = escape(self.query_text)
-        yield Static(
-            f"[bold]Results for[/bold] [italic #FFE500]'{escaped_query}'[/italic #FFE500] "
-            f"[dim]({len(self.all_results)} results)[/dim]",
-            id="results-header",
-        )
+        yield Static(self._results_header_text(), id="results-header")
         yield Input(
             placeholder=FILTER_PLACEHOLDERS.get(
                 self.search_type, "Filter results..."
@@ -461,6 +516,21 @@ class ResultsScreen(Screen):
     def on_mount(self) -> None:
         self._render_page()
         self._refresh_footer_bindings()
+
+    def _results_header_text(self) -> str:
+        escaped_query = escape(self.query_text)
+        quality_label = escape(
+            QUALITY_LABELS.get(self.download_quality, QUALITY_LABELS["high"])
+        )
+        counts = (
+            f"{len(self.filtered_results)} of {len(self.all_results)} results"
+            if self.filtered_results != self.all_results
+            else f"{len(self.all_results)} results"
+        )
+        return (
+            f"[bold]Results for[/bold] [italic #FFE500]'{escaped_query}'[/italic #FFE500] "
+            f"[dim]({counts} • {quality_label} downloads)[/dim]"
+        )
 
     # ── Pagination ────────────────────────────────────────────────────
 
@@ -551,11 +621,7 @@ class ResultsScreen(Screen):
             self.current_page = 0
         else:
             self._render_page()
-        escaped_query = escape(self.query_text)
-        self.query_one("#results-header", Static).update(
-            f"[bold]Results for[/bold] [italic #FFE500]'{escaped_query}'[/italic #FFE500] "
-            f"[dim]({len(self.filtered_results)} of {len(self.all_results)} results)[/dim]"
-        )
+        self.query_one("#results-header", Static).update(self._results_header_text())
         self._refresh_footer_bindings()
 
     # ── Download ──────────────────────────────────────────────────────
@@ -582,7 +648,9 @@ class ResultsScreen(Screen):
                 collection_name=result["collection_name"],
             )
             self.app.call_from_thread(
-                self.notify, f"✓ Downloaded: {saved.name}", severity="information"
+                self.notify,
+                f"✓ Downloaded ({self.download_quality}): {saved.name}",
+                severity="information",
             )
         except ArtworkDownloadError as exc:
             self.app.call_from_thread(
@@ -629,10 +697,10 @@ class ResultsScreen(Screen):
 
     def _get_preview_source(self, result: ArtworkResult) -> str:
         preview_url = result.get("preview_url", "")
-        return preview_url.replace("100x100bb", "300x300bb")
+        return replace_artwork_dimensions(preview_url, "300x300")
 
     def _get_preview_fallback(self, preview_url: str) -> str:
-        return preview_url.replace("300x300bb", "100x100bb")
+        return replace_artwork_dimensions(preview_url, "100x100")
 
     # ── Navigation ────────────────────────────────────────────────────
 
