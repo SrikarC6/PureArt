@@ -152,15 +152,15 @@ class HomeScreen(Screen):
                             yield Static("Download quality", classes="panel-title")
                             with RadioSet(id="quality-set", compact=True):
                                 yield RadioButton(
-                                    QUALITY_LABELS["low"], id="quality-low"
+                                    QUALITY_LABELS["low"],
+                                    id="quality-low",
+                                    value=True,
                                 )
                                 yield RadioButton(
                                     QUALITY_LABELS["medium"], id="quality-medium"
                                 )
                                 yield RadioButton(
-                                    QUALITY_LABELS["high"],
-                                    id="quality-high",
-                                    value=True,
+                                    QUALITY_LABELS["high"], id="quality-high"
                                 )
                     with Vertical(id="query-panel", classes="home-panel"):
                         yield Static("Search", classes="panel-title")
