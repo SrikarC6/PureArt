@@ -23,7 +23,7 @@ PureArt is a terminal-based app that lets you search for any album, artist, or s
 
 - Search by **album name**, **artist name**, or **song name**
 - Retrieves up to 25 results per search from the iTunes Search API
-- Downloads artwork at the **highest available resolution** (up to 10000×10000)
+- Choose between **Low (600×600)**, **Medium (1280×1280)**, and **High (best available)** download quality
 - **Inline image preview** in supported terminals (iTerm2, Kitty, WezTerm)
 - **Fallback text mode** for unsupported terminals — shows album name, artist, and direct download links
 - Built-in **file browser** to choose exactly where artwork is saved
@@ -80,24 +80,45 @@ Launch PureArt from any terminal:
 pureart
 ```
 
+### New: Download Quality Selector
+
+PureArt now lets you choose the artwork resolution directly from the welcome screen before you search:
+
+| Option | Behavior |
+|---|---|
+| `Low` | Requests a `600×600` artwork file |
+| `Medium` | Requests a `1280×1280` artwork file |
+| `High` | Requests the best available artwork from Apple using the app's original high-resolution URL behavior |
+
+This changes the **downloaded artwork file only**. Inline previews in the results screen stay optimized for terminal display.
+
 ---
 
 ## How It Works
 
 ### Step 1 — Choose a Search Type
 
-On the main menu, use the arrow keys or the number shortcuts to select what you want to search by:
+On the main menu, choose what you want to search by and which artwork quality you want to download. You can use the number shortcuts to jump directly to a search type:
 
 | Key | Action |
 |---|---|
-| `↑` / `↓` | Navigate between Album, Artist, Song |
 | `1` | Jump to Album |
 | `2` | Jump to Artist |
 | `3` | Jump to Song |
 | `Tab` | Move focus to next element |
 | `Shift+Tab` | Move focus to previous element |
 
-Type your search query into the **Query** input box and press `Ctrl+R` or `Enter` to search.
+Then type your search query into the **Search** input box and press `Ctrl+R` or `Enter` to search.
+
+### Step 1.5 — Pick a Download Quality
+
+Before running the search, select one of the welcome-screen quality options:
+
+- **Low** for `600×600`
+- **Medium** for `1280×1280`
+- **High** for the best available image Apple serves for that release
+
+The selected quality is applied after search results are returned, so the search behavior stays the same while the final download URL changes to match the chosen size.
 
 ---
 
@@ -156,13 +177,15 @@ The artwork is saved as a `.jpg` file named after the album and artist. A confir
 
 ## How the API Works
 
-PureArt uses Apple's public **iTunes Search API** — no API key or authentication required. Search results include a thumbnail artwork URL which PureArt then modifies to request the maximum available resolution from Apple's CDN:
+PureArt uses Apple's public **iTunes Search API** — no API key or authentication required. Search results include a thumbnail artwork URL which PureArt then rewrites into a size-specific download URL:
 
 ```
-100x100bb.jpg  →  10000x10000bb.jpg
+100x100bb.jpg      →  600x600bb.jpg
+100x100bb.jpg      →  1280x1280bb.jpg
+100x100bb.jpg      →  10000x10000bb.jpg
 ```
 
-Apple's CDN serves the highest resolution it has available for that specific release, typically between 1400×1400 and 3000×3000 pixels for most modern albums.
+For the `High` option, Apple's CDN still decides the final delivered resolution. PureArt requests the highest-resolution form of the URL, and Apple serves the best artwork it has available for that specific release.
 
 ---
 
