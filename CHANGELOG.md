@@ -2,6 +2,7 @@
 
 ## [1.1.2] - 2026-04-22
 ### Changed
+- Changed welcome screen PyFiglet font to `epic` from `isometric1`
 - Fixed an issue where searches for valid albums or artists occasionally returned zero results due to overly restrictive API parameters
 - Bypassed Apple's WAF safe-search filters that were silently hiding explicit albums
 - Implemented cache-busting to prevent the iTunes CDN from continuously returning cached empty results
