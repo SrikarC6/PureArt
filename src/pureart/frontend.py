@@ -113,7 +113,7 @@ class HomeScreen(Screen):
     @classmethod
     def _get_logo(cls) -> Text:
         if cls._logo_cache is None:
-            logo = pyfiglet.figlet_format("PureArt", font="isometric1", width=200)
+            logo = pyfiglet.figlet_format("PureArt", font="epic", width=200)
             text = Text(logo)
             length = len(logo)
             text.stylize("bold #FF6B6B", 0, length // 3)
