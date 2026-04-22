@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import re
+import time
 from datetime import datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -47,10 +48,14 @@ class ArtworkDownloadError(ArtworkError):
 class ArtworkPreviewError(ArtworkError):
     """Raised when an artwork preview cannot be fetched."""
 
-SEARCH_CONFIG: dict[str, dict[str, str]] = {
-    "album":  {"entity": "album", "attribute": "albumTerm"},
-    "song":   {"entity": "song",  "attribute": "songTerm"},
-    "artist": {"entity": "album", "attribute": "artistTerm"},
+SEARCH_CONFIG: dict[str, str] = {
+    "album": "album",
+    "song": "song",
+    "artist": "album",
+}
+
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
 
 
@@ -144,7 +149,7 @@ def _normalize_result(item: dict[str, object]) -> ArtworkResult | None:
 
 
 def search_artwork(
-    search_type: SearchType | str, name: str, limit: int = 200
+    search_type: SearchType | str, name: str, limit: int = 200, country: str = "us"
 ) -> list[ArtworkResult]:
     """Search the iTunes API for album artwork.
 
@@ -172,16 +177,18 @@ def search_artwork(
         raise ValueError("Search limit must be at least 1")
     limit = min(limit, 200)
 
-    config = SEARCH_CONFIG[search_type]
     params = {
         "term": query,
-        "entity": config["entity"],
-        "attribute": config["attribute"],
+        "entity": SEARCH_CONFIG[search_type],
         "limit": limit,
+        "country": country,
+        "explicit": "Yes",
+        "media": "music",
+        "_": int(time.time() * 1000),
     }
 
     try:
-        response = requests.get(BASE_URL, params=params, timeout=15)
+        response = requests.get(BASE_URL, params=params, headers=HEADERS, timeout=15)
         response.raise_for_status()
     except requests.Timeout as exc:
         raise ArtworkSearchError(
