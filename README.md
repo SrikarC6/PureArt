@@ -56,7 +56,13 @@ If your terminal does not support inline images, PureArt automatically falls bac
 
 ## Installation
 
-### Via pip (recommended)
+### Via uv (recommended)
+
+```bash
+uv tool install pureart
+```
+
+### Via pip
 
 ```bash
 pip install pureart
@@ -74,7 +80,13 @@ pip install .
 
 ## Usage
 
-Launch PureArt from any terminal:
+### From uv (recommended)
+
+```bash
+uv tool run pureart
+```
+
+### From any terminal (installed with pip or from source)
 
 ```bash
 pureart
